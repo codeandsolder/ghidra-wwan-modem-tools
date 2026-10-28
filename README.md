@@ -40,6 +40,8 @@ The exact cross-vendor expectations and fixture hashes are recorded in [`docs/PA
 
 Current topics include FBRx, VSWR/S11, IQ/sample capture, couplers/RFFE, XPT/DPD, WTR3925, and FTM RF-test code.
 
+For GCT GDM7243-family firmware, `GctRfSurvey.java` performs the equivalent RF archaeology over embedded strings and the modem's BE8 command tables. It recovers command handlers, tags/bookmarks RF functions, ranks PLL/ATE/RFFE/calibration/measurement/IQ paths, and emits decompilations for the highest-value roots. The current WF830 findings and import model are documented in [`docs/GCT_GDM7243_RF.md`](docs/GCT_GDM7243_RF.md).
+
 ## Utility scripts
 
 - `ListCweTree.java` — recursively verifies container/filesystem recognition.
@@ -49,6 +51,8 @@ Current topics include FBRx, VSWR/S11, IQ/sample capture, couplers/RFFE, XPT/DPD
 - `ProbeQualcommPacked.java` — generic no-analysis probe for q6zip, zlib/debug, and CLADE decisions on an arbitrary split Qualcomm modem image.
 - `VerifyEm7455Packed.java` — no-analysis regression smoke for the known SWI9X30C EM7455 image; asserts q6zip runtime mapping, zlib overlay size, and recovered debug-bookmark count.
 - `DumpVnaolteRfReport.java` — exports tagged functions as TSV.
+- `GctRfSurvey.java` — recovers GCT BE8 command tables and produces a ranked RF-chain/call-graph/decompilation report.
+- `DecompileFunctions.java` — decompiles exact function names or addresses with immediate callers/callees; useful for following recovered command handlers without writing target-specific scripts.
 
 ## Build
 

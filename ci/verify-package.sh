@@ -9,7 +9,10 @@ for required in \
   VnaolteFirmware/extension.properties \
   VnaolteFirmware/lib/VnaolteFirmware.jar \
   VnaolteFirmware/docs/PACKED_REGRESSION_MATRIX.md \
-  VnaolteFirmware/ghidra_scripts/ProbeQualcommPacked.java; do
+  VnaolteFirmware/docs/GCT_GDM7243_RF.md \
+  VnaolteFirmware/ghidra_scripts/ProbeQualcommPacked.java \
+  VnaolteFirmware/ghidra_scripts/GctRfSurvey.java \
+  VnaolteFirmware/ghidra_scripts/DecompileFunctions.java; do
   grep -Fxq "$required" <<<"$members" || {
     echo "missing package member: $required" >&2
     exit 1
