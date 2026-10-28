@@ -22,7 +22,7 @@ SWI9X30C_02.38.00.00.cwe
         └── dtb/*.dtb
 ```
 
-Qualcomm executable loading is intentionally delegated to **QDig/QualcommLoaders**, which already handles split `modem.mdt + .bNN` images and Hexagon correctly on Ghidra 12.1+.
+Qualcomm executable loading is intentionally delegated to **[QDig/QualcommLoaders](https://github.com/NerdTIV/QDig)**, which already handles split `modem.mdt + .bNN` images and Hexagon correctly on Ghidra 12.1+.
 
 ## Analyzers
 
@@ -74,6 +74,6 @@ The verification must end with `EM7455_PACKED_VERIFY=PASS`.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` builds on the repo-scoped Acer self-hosted Linux runner using root-owned, fingerprint-pinned local JDK 25 and Ghidra 12.2 toolchains plus the checked-in Gradle 9.1.0 wrapper. CI runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP for seven days.
+Public CI runs on GitHub-hosted Linux runners. It pins Ghidra 12.2 by release SHA-256, uses JDK 25 and the checked-in Gradle 9.1.0 wrapper, runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP.
 
-The five-firmware packed-format matrix also runs in CI against a hash-pinned fixture corpus kept locally on the Acer runner; modem firmware is never uploaded to GitHub. Each run uses a throwaway Ghidra user configuration so CI cannot modify the interactive Ghidra setup. Fixture hashes and expected outcomes are documented in `docs/PACKED_REGRESSION_MATRIX.md`.
+The five-firmware packed-format regression harness remains in `ci/run-packed-regression.sh`, but the modem images are intentionally not redistributed in this public repository. Maintainers with the hash-pinned fixture corpus can run it by setting `VNAOLTE_FIXTURE_ROOT` (and optionally `VNAOLTE_QCOM_LOADERS`) before invoking the script. Fixture hashes and expected outcomes are documented in `docs/PACKED_REGRESSION_MATRIX.md`.

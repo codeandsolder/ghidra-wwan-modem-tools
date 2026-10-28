@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GHIDRA_VERSION: '12.2'
+  GHIDRA_BUILD: '20261016'
+  GHIDRA_SHA256: '2c2cd776db3c1f6a097ba418922378ac3649cadd5e844a6f5f088ae628a7be67'
+
+jobs:
+  build:
+    name: Ghidra extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 25
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Cache Ghidra
+        id: cache-ghidra
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/vnaolte-ghidra/ghidra_${{ env.GHIDRA_VERSION }}_PUBLIC
+          key: ghidra-${{ runner.os }}-${{ env.GHIDRA_VERSION }}-${{ env.GHIDRA_BUILD }}-${{ env.GHIDRA_SHA256 }}
+
+      - name: Download pinned Ghidra
+        if: steps.cache-ghidra.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_root="$HOME/.cache/vnaolte-ghidra"
+          archive="$RUNNER_TEMP/ghidra.zip"
+          mkdir -p "$cache_root"
+          curl --fail --location --retry 3 \
+            --output "$archive" \
+            "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_BUILD}.zip"
+          printf '%s  %s\n' "$GHIDRA_SHA256" "$archive" | sha256sum -c -
+          unzip -q "$archive" -d "$cache_root"
+          test -f "$cache_root/ghidra_${GHIDRA_VERSION}_PUBLIC/Ghidra/application.properties"
+
+      - name: Configure Ghidra
+        shell: bash
+        run: |
+          set -euo pipefail
+          ghidra="$HOME/.cache/vnaolte-ghidra/ghidra_${GHIDRA_VERSION}_PUBLIC"
+          test -f "$ghidra/support/buildExtension.gradle"
+          grep -Fq "application.version=${GHIDRA_VERSION}" "$ghidra/Ghidra/application.properties"
+          printf 'GHIDRA_INSTALL_DIR=%s\n' "$ghidra" >> "$GITHUB_ENV"
+
+      - name: Check source and scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check "$(git hash-object -t tree /dev/null)" HEAD
+          bash -n ci/*.sh
+
+      - name: Test and build extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          ./gradlew --no-daemon clean test buildExtension
+
+      - name: Verify extension package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find dist -maxdepth 1 -type f -name '*.zip' -print | sort)
+          [[ ${#packages[@]} -eq 1 ]] || {
+            printf 'expected exactly one extension zip, found %d\n' "${#packages[@]}" >&2
+            printf '%s\n' "${packages[@]}" >&2
+            exit 1
+          }
+          ci/verify-package.sh "${packages[0]}"
+
+      - name: Upload extension
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: VnaolteFirmware-${{ github.sha }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7

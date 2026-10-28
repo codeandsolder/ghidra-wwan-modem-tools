@@ -6,8 +6,8 @@ fixture_root=${VNAOLTE_FIXTURE_ROOT:-/srv/ci/vnaolte-fixtures}
 qcom_loaders=${VNAOLTE_QCOM_LOADERS:-$fixture_root/QualcommLoaders}
 ghidra=${GHIDRA_INSTALL_DIR:?GHIDRA_INSTALL_DIR must point at Ghidra 12.2}
 analyze="$ghidra/support/analyzeHeadless"
-repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
-script_dir="$repo_root/ghidra/VnaolteFirmware/ghidra_scripts"
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+script_dir="$repo_root/ghidra_scripts"
 
 [[ -x "$analyze" ]] || { echo "missing analyzeHeadless: $analyze" >&2; exit 1; }
 [[ -f "$zip_path" ]] || { echo "missing extension package: $zip_path" >&2; exit 1; }
