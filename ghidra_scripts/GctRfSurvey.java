@@ -36,6 +36,7 @@ import ghidra.program.model.symbol.SourceType;
 public class GctRfSurvey extends GhidraScript {
     private record Topic(String name, String tag, String[] needles) {}
     private record Evidence(Address stringAddress, String text, Address refFrom) {}
+    private record AsciiString(Address address, String text) {}
     private enum CommandLayout { NAME_DESC_FLAGS_TARGET, TARGET_NAME_DESC_FLAGS }
     private record CommandRecord(Address tableAddress, CommandLayout layout, String name,
             String description, long flags, Address target, boolean functionTarget) {}
@@ -58,6 +59,11 @@ public class GctRfSurvey extends GhidraScript {
             "pmuxloopback", "ciq_metric", "iq_put", "iq dump", "iq_dump", "iq capture",
             "iq_capture", "complex iq", "fft", "loopback", "corr_i", "corr_q",
             "multi-tone correl", "cal multi tone", "calpath", "cal path"
+        }),
+        new Topic("DMA / sample buffers", "VNAOLTE:GCT-DMA", new String[] {
+            "[csi][dma]", "dma address", "print csi dma", "pp_dma", "dma_addr",
+            "dma buffer", "sample buffer", "adc_copy_mode", "csi_process_dma_intr",
+            "dma_compute_ri_rev", "dma_get_pmi_metric", "csi_dma_event", "use_dma", "use_sb_dma"
         }),
         new Topic("RFFE / switch / PA", "VNAOLTE:GCT-RFFE", new String[] {
             "rffe", "rfsw", "extlna", "rffe_pam", "rffe_sw", "mipi_pa", "pam gain",
@@ -85,14 +91,16 @@ public class GctRfSurvey extends GhidraScript {
         "set_rx_adc_ant_mux_sel", "adc_copy_mode", "rfm cal dac", "powerdetectoradc",
         "pdetadc", "setrfpllsel", "controlrfpll", "set_rx_vco_lo_pll",
         "set_tx_vco_lo_pll", "_grf_cfg_chan", "rfm cal rfpll", "rfm rffe w",
-        "rfm rffe r", "rfm_change_4rx_mode", "corr_i", "corr_q", "multi-tone correl"
+        "rfm rffe r", "rfm_change_4rx_mode", "corr_i", "corr_q", "multi-tone correl",
+        "[csi][dma]", "dma address", "print csi dma", "pp_dma", "dma_addr",
+        "csi_process_dma_intr", "dma_compute_ri_rev", "dma_get_pmi_metric", "csi_dma_event"
     );
 
     private static final Set<String> PRIORITY_COMMANDS = Set.of(
         "-fft1", "-fft2", "-txt", "-rxirr", "-cpen", "-cpmen", "-cpden", "-cpdis",
         "-txcl", "-rximb2", "-ate", "-sfd", "-sfu", "-sf", "-rxp", "-txg", "-tx",
         "-cal", "-rffe", "-bandsw", "-test_fo", "-force_rx_path", "-adc_clock_phase",
-        "-rfm"
+        "-dma", "-dma_addr", "-rfm"
     );
 
     private static final int MIN_COMMAND_RUN = 3;
@@ -121,7 +129,7 @@ public class GctRfSurvey extends GhidraScript {
         Map<Address, Hit> hits = new LinkedHashMap<>();
         List<String> matchingStrings = new ArrayList<>();
         int definedStrings = 0;
-        int matchedStrings = 0;
+        int rawStringsAdded = 0;
         int matchedRefs = 0;
         int unresolvedRefs = 0;
 
@@ -134,20 +142,33 @@ public class GctRfSurvey extends GhidraScript {
             }
         }
 
+        Map<Address, String> interestingStrings = new LinkedHashMap<>();
         var dataIterator = currentProgram.getListing().getDefinedData(true);
         while (dataIterator.hasNext()) {
             Data data = dataIterator.next();
             monitor.checkCancelled();
-            definedStrings++;
             Object value = data.getValue();
             if (!(value instanceof String text) || text.isBlank()) continue;
-            List<Topic> topics = topicsFor(text);
-            if (topics.isEmpty()) continue;
-            matchedStrings++;
-            String compact = compact(text, 260);
-            matchingStrings.add(data.getAddress() + "\t" + compact);
+            definedStrings++;
+            if (!topicsFor(text).isEmpty()) interestingStrings.put(data.getAddress(), text);
+        }
 
-            ReferenceIterator rit = refs.getReferencesTo(data.getAddress());
+        // Auto-analysis does not always define every embedded diagnostic string, especially in
+        // partially recovered modem images. Scan initialized memory for printable ASCII runs
+        // delimited by control bytes as a fallback so RF archaeology does not depend on string analysis.
+        for (AsciiString raw : scanInterestingAsciiStrings(memory)) {
+            monitor.checkCancelled();
+            if (interestingStrings.putIfAbsent(raw.address(), raw.text()) == null) rawStringsAdded++;
+        }
+
+        for (Map.Entry<Address, String> entry : interestingStrings.entrySet()) {
+            Address stringAddress = entry.getKey();
+            String text = entry.getValue();
+            List<Topic> topics = topicsFor(text);
+            String compact = compact(text, 260);
+            matchingStrings.add(stringAddress + "\t" + compact);
+
+            ReferenceIterator rit = refs.getReferencesTo(stringAddress);
             while (rit.hasNext()) {
                 Reference ref = rit.next();
                 matchedRefs++;
@@ -159,7 +180,7 @@ public class GctRfSurvey extends GhidraScript {
                 Hit hit = hits.computeIfAbsent(f.getEntryPoint(), ignored -> new Hit(f));
                 hit.topics.addAll(topics);
                 if (hit.evidence.size() < 64) {
-                    hit.evidence.add(new Evidence(data.getAddress(), compact, ref.getFromAddress()));
+                    hit.evidence.add(new Evidence(stringAddress, compact, ref.getFromAddress()));
                 }
                 hit.score += score(text, topics);
             }
@@ -207,7 +228,8 @@ public class GctRfSurvey extends GhidraScript {
             out.println("- Program data endian: `" + (memory.isBigEndian() ? "big" : "little") + "`");
             out.println("- Image base: `" + currentProgram.getImageBase() + "`");
             out.println("- Defined strings scanned: " + definedStrings);
-            out.println("- RF-relevant strings: " + matchedStrings);
+            out.println("- RF-relevant strings: " + interestingStrings.size());
+            out.println("- Raw ASCII RF strings added beyond defined strings: " + rawStringsAdded);
             out.println("- References to RF strings: " + matchedRefs);
             out.println("- Referenced RF functions: " + ranked.size());
             out.println("- RF-string references outside known functions: " + unresolvedRefs);
@@ -224,8 +246,8 @@ public class GctRfSurvey extends GhidraScript {
             for (CommandRun run : commandRuns) {
                 out.println("### `" + run.start() + "` — `" + run.layout() + "` (" + run.records().size() + " records)");
                 out.println();
-                out.println("| row | command | description | flags | target kind | target | function |");
-                out.println("|---|---|---|---:|---|---|---|");
+                out.println("| row | command | description | flags | target kind | target | decompile query | function |");
+                out.println("|---|---|---|---:|---|---|---|---|");
                 for (CommandRecord command : run.records()) {
                     Function f = null;
                     if (command.functionTarget()) {
@@ -233,11 +255,12 @@ public class GctRfSurvey extends GhidraScript {
                         if (f == null) f = funcs.getFunctionContaining(command.target());
                     }
                     String fn = f == null ? "" : f.getName();
-                    out.printf(Locale.ROOT, "| `%s` | `%s` | %s | `0x%x` | %s | `%s` | `%s` |%n",
+                    String query = command.functionTarget() ? "thumb:" + command.target() : "";
+                    out.printf(Locale.ROOT, "| `%s` | `%s` | %s | `0x%x` | %s | `%s` | `%s` | `%s` |%n",
                         command.tableAddress(), escapeTicks(command.name()),
                         escapePipe(command.description()), command.flags(),
                         command.functionTarget() ? "function" : "subtable", command.target(),
-                        escapePipe(fn));
+                        query, escapePipe(fn));
                 }
                 out.println();
             }
@@ -314,11 +337,53 @@ public class GctRfSurvey extends GhidraScript {
         }
 
         println("GCT_RF_SURVEY_DEFINED_STRINGS=" + definedStrings);
-        println("GCT_RF_SURVEY_MATCHED_STRINGS=" + matchedStrings);
+        println("GCT_RF_SURVEY_MATCHED_STRINGS=" + interestingStrings.size());
         println("GCT_RF_SURVEY_REFERENCED_FUNCTIONS=" + ranked.size());
         println("GCT_RF_SURVEY_COMMAND_RUNS=" + commandRuns.size());
         println("GCT_RF_SURVEY_COMMANDS=" + commands.size());
         println("GCT_RF_SURVEY_REPORT=" + output.toAbsolutePath());
+    }
+
+    private List<AsciiString> scanInterestingAsciiStrings(Memory memory) throws Exception {
+        List<AsciiString> out = new ArrayList<>();
+        byte[] chunk = new byte[64 * 1024];
+        final int minLength = 4;
+        final int maxLength = 1024;
+
+        for (MemoryBlock block : memory.getBlocks()) {
+            if (!block.isInitialized()) continue;
+            StringBuilder run = new StringBuilder();
+            Address runStart = null;
+            boolean overflow = false;
+            long offset = 0;
+            while (offset < block.getSize()) {
+                monitor.checkCancelled();
+                int wanted = (int)Math.min(chunk.length, block.getSize() - offset);
+                Address chunkStart = block.getStart().add(offset);
+                int got = memory.getBytes(chunkStart, chunk, 0, wanted);
+                if (got <= 0) break;
+                for (int i = 0; i < got; i++) {
+                    int value = chunk[i] & 0xff;
+                    if (value >= 0x20 && value <= 0x7e) {
+                        if (runStart == null) runStart = chunkStart.add(i);
+                        if (!overflow) {
+                            if (run.length() < maxLength) run.append((char)value);
+                            else overflow = true;
+                        }
+                        continue;
+                    }
+                    if (!overflow && runStart != null && run.length() >= minLength) {
+                        String text = run.toString();
+                        if (!topicsFor(text).isEmpty()) out.add(new AsciiString(runStart, text));
+                    }
+                    run.setLength(0);
+                    runStart = null;
+                    overflow = false;
+                }
+                offset += got;
+            }
+        }
+        return out;
     }
 
     private List<CommandRun> findCommandRuns(Memory memory) throws Exception {

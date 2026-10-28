@@ -52,7 +52,9 @@ For GCT GDM7243-family firmware, `GctRfSurvey.java` performs the equivalent RF a
 - `VerifyEm7455Packed.java` — no-analysis regression smoke for the known SWI9X30C EM7455 image; asserts q6zip runtime mapping, zlib overlay size, and recovered debug-bookmark count.
 - `DumpVnaolteRfReport.java` — exports tagged functions as TSV.
 - `GctRfSurvey.java` — recovers GCT BE8 command tables and produces a ranked RF-chain/call-graph/decompilation report.
-- `DecompileFunctions.java` — decompiles exact function names or addresses with immediate callers/callees; useful for following recovered command handlers without writing target-specific scripts.
+- `DecompileFunctions.java` — decompiles exact function names or addresses with immediate callers/callees; use `thumb:ADDRESS` (or an odd ARM Thumb pointer) to recover missing Thumb function boundaries explicitly.
+- `DisassembleRanges.java` — emits bounded assembly for exact address ranges inside giant dispatchers or partially recovered functions.
+- `FindAddressUses.java` — finds direct and ARM `MOVW`/`MOVT`-constructed uses of absolute addresses, including nearby prefixed diagnostic-string records.
 
 ## Build
 
