@@ -60,6 +60,24 @@ That makes a practical VNA architecture straightforward in principle:
 
 A full two-port instrument needs source-direction switching (a second usable TX path or an external RF switch) and appropriate attenuation/isolation. The exact PL100/WF830 band-filter and connector routing still needs physical-board confirmation. No live RF transmit experiment has been performed as part of this archaeology.
 
+## Live P4 RF-NV and PAM profiles
+
+The live WF830/P4 `BD_CFG` object selects five FDD band pairs and a MIPI-programmable SKY77645-11 PAM profile family. Main VPorts select PAM IDs 14, 15, and 16, which the firmware names `SKY77645_11_MULTI_PORT1/2/3`; all use wanted USID `0x0f`. The firmware's six-byte PAM identity table at `0xD56AC6E8` independently identifies PAM IDs 14–17 as default USID `0x0f`, product `0x0a`, manufacturer `0xa5`. By contrast, RF5426 PAM IDs 28–32 use product/manufacturer `0xfd/0x34`.
+
+That distinction resolves `rffe_ctrl_type=23`: type 23 probes MIPI registers `0x1d`/`0x1e` and promotes runtime control to type 29 only if a device answers `0xfd/0x34`. The promotion is compatibility logic for an RF5426-class hardware variant; it is not evidence that this P4 unit actually promotes. Its configured SKY77645 profiles expect `0x0a/0xa5`.
+
+`DumpGctPamProfiles.java` makes the compiled PAM programming directly inspectable. The firmware constructors produce a fixed 0x22-byte record: six MIPI register addresses, four banks of six values, then four per-bank send counts. For SKY77645-11 the address vector is `00 01 02 03 00 00`, the send counts are `4,4,4,2`, and the shutdown bank writes register 0 and register 1 to zero. At representative live uplink frequencies, the active bank is:
+
+| LTE band | live PAM ID | kHz | active MIPI writes |
+|---|---:|---:|---|
+| B8 | 14 / port 1 | 897500 | `R0=0x0c R1=0x5b R2=0x00 R3=0x8a` |
+| B20 | 15 / port 2 | 847000 | `R0=0x1c R1=0x5b R2=0x00 R3=0x8a` |
+| B3 | 16 / port 3 | 1747500 | `R0=0x44 R1=0x5f R2=0x00 R3=0xcb` |
+| B1 | 15 / port 2 | 1950000 | `R0=0x3c R1=0x4e R2=0x00 R3=0xcb` |
+| B7 | 14 / port 1 | 2535000 | `R0=0x6c R1=0xca R2=0x00 R3=0x89` |
+
+The profile constructor therefore gives an exact software-side front-end control table even before the PCB traces are mapped. The next physical-routing question is how the SKY77645 output/T-R ports feed the WF830 duplexers, filters, and antenna switching, and whether its receive-switch state can expose a convenient same-frequency measurement path.
+
 ## Stock host DM transport
 
 The application-side `lted` already provides a raw path into this modem command surface. `x_send_dm_command()` calls `LAPI_SendDMCommand(..., 1, cmd, strlen(cmd) + 1)`, while `cm_send_dm_cmd()` does the same for the normal CLI/file/socket paths. The hidden `x` runner treats a token beginning with `dm ` specially and forwards the remainder verbatim; the normal command paths call `do_cmd()` first and forward text that is not consumed locally. This means a VNA control shim should first reuse the stock DM channel rather than patching a new modem transport.
