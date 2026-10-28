@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
 import ghidra.app.services.AbstractAnalyzer;
@@ -25,10 +27,10 @@ import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 
 /**
- * Restores old Qualcomm zlib-compressed debug/ro-fatal metadata as an overlay.
+ * Restores Qualcomm zlib-compressed debug/ro-fatal metadata as an overlay.
  *
- * <p>MDM9x35 images contain a read-only zlib segment whose decompressed stream
- * begins with 16-byte records. In the observed SWI9X30C image the words are:
+ * <p>Older MDM9x35 images contain a read-only zlib segment whose decompressed
+ * stream begins with 16-byte records. In the observed SWI9X30C image the words are:
  *
  * <pre>
  *   u32 packed_source_metadata;  // low 16 bits are source line
@@ -40,11 +42,21 @@ import ghidra.util.task.TaskMonitor;
  * <p>The exact semantics of the upper source bits and second word are left
  * deliberately unnamed. We only annotate facts validated by pointer targets:
  * source file, low-16 source line, and printable format string.
+ *
+ * <p>Newer images can use the same ELF-side zlib container for a dense
+ * NUL-terminated diagnostic string pool without those old records. That form is
+ * accepted only when the inflated payload is overwhelmingly textual and has a
+ * large population of modem-diagnostic strings; RF-interest strings are then
+ * bookmarked directly. The detector therefore generalizes by structure rather
+ * than by chipset, address, or firmware version.
  */
 public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
     private static final int MAX_PACKED = 4 * 1024 * 1024;
     private static final int MAX_UNPACKED = 64 * 1024 * 1024;
     private static final int MIN_VALID_RECORDS = 128;
+    private static final int MIN_STRING_COUNT = 256;
+    private static final int MIN_STRING_BYTES = 64 * 1024;
+    private static final int MIN_DIAGNOSTIC_STRINGS = 64;
     private static final String BLOCK_PREFIX = "qcom_zlib_debug_";
 
     private static final String[] RF_NEEDLES = {
@@ -56,9 +68,14 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
     private record Record(int offset, int line, long formatPointer,
             long sourcePointer, String source, String format) {}
 
+    private record StringEntry(int offset, String text) {}
+
+    private record StringPool(List<StringEntry> strings, int printableBytes,
+            int diagnosticStrings) {}
+
     public QualcommZlibDebugOverlayAnalyzer() {
         super("VNAOLTE Qualcomm zlib Debug Overlay",
-            "Decompresses Qualcomm ro-fatal/debug zlib segments into an overlay and annotates validated source-file/line/format records.",
+            "Decompresses Qualcomm ro-fatal/debug zlib segments into overlays; annotates validated old source records or dense modern diagnostic string pools.",
             AnalyzerType.BYTE_ANALYZER);
         setPriority(AnalysisPriority.BLOCK_ANALYSIS.before());
         setDefaultEnablement(true);
@@ -107,8 +124,16 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
 
             long base = packed.getStart().getOffset();
             List<Record> records = findRecords(program, decoded, base, monitor);
-            if (records.size() < MIN_VALID_RECORDS) {
-                continue;
+            StringPool pool = null;
+            boolean recordLayout = records.size() >= MIN_VALID_RECORDS;
+            if (!recordLayout) {
+                pool = findStringPool(decoded, monitor);
+                int requiredBytes = Math.max(MIN_STRING_BYTES, decoded.length / 3);
+                if (pool.strings().size() < MIN_STRING_COUNT ||
+                        pool.printableBytes() < requiredBytes ||
+                        pool.diagnosticStrings() < MIN_DIAGNOSTIC_STRINGS) {
+                    continue;
+                }
             }
 
             String name = BLOCK_PREFIX + String.format(Locale.ROOT, "%08x", base);
@@ -122,16 +147,30 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                 overlay.setPermissions(true, false, false);
                 overlay.setArtificial(true);
                 overlay.setSourceName("zlib:" + packed.getName());
-                overlay.setComment(String.format(Locale.ROOT,
-                    "VNAOLTE decompressed Qualcomm debug/ro-fatal overlay from %s; packed=0x%x decoded=0x%x; %d validated 16-byte source/format records",
-                    packed.getName(), compressed.length, decoded.length, records.size()));
 
-                int rf = annotate(program, overlay, records, monitor);
+                int rf;
+                if (recordLayout) {
+                    overlay.setComment(String.format(Locale.ROOT,
+                        "VNAOLTE decompressed Qualcomm debug/ro-fatal overlay from %s; packed=0x%x decoded=0x%x; %d validated 16-byte source/format records",
+                        packed.getName(), compressed.length, decoded.length, records.size()));
+                    rf = annotate(program, overlay, records, monitor);
+                    log.appendMsg(getName(), String.format(Locale.ROOT,
+                        "%s -> %s, 0x%x -> 0x%x bytes; %d debug records (%d RF-interest)",
+                        packed.getName(), overlay.getName(), compressed.length, decoded.length,
+                        records.size(), rf));
+                }
+                else {
+                    overlay.setComment(String.format(Locale.ROOT,
+                        "VNAOLTE decompressed Qualcomm diagnostic string-pool overlay from %s; packed=0x%x decoded=0x%x; %d NUL-terminated printable strings, %d diagnostic strings",
+                        packed.getName(), compressed.length, decoded.length, pool.strings().size(),
+                        pool.diagnosticStrings()));
+                    rf = annotateStringPool(program, overlay, pool, monitor);
+                    log.appendMsg(getName(), String.format(Locale.ROOT,
+                        "%s -> %s, 0x%x -> 0x%x bytes; dense diagnostic string pool: %d strings, %d diagnostic (%d RF-interest)",
+                        packed.getName(), overlay.getName(), compressed.length, decoded.length,
+                        pool.strings().size(), pool.diagnosticStrings(), rf));
+                }
                 mounted++;
-                log.appendMsg(getName(), String.format(Locale.ROOT,
-                    "%s -> %s, 0x%x -> 0x%x bytes; %d debug records (%d RF-interest)",
-                    packed.getName(), overlay.getName(), compressed.length, decoded.length,
-                    records.size(), rf));
             }
             catch (Exception e) {
                 log.appendException(e);
@@ -157,7 +196,9 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
             // Common zlib CMF/FLG validation, rather than hard-coding 78 9c.
             int cmf = h[0] & 0xff;
             int flg = h[1] & 0xff;
-            return (cmf & 0x0f) == 8 && ((cmf << 8) + flg) % 31 == 0;
+            int cinfo = cmf >>> 4;
+            return (cmf & 0x0f) == 8 && cinfo <= 7 &&
+                ((cmf << 8) + flg) % 31 == 0;
         }
         catch (MemoryAccessException e) {
             return false;
@@ -165,6 +206,29 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
     }
 
     private static byte[] inflate(byte[] input) throws IOException {
+        try {
+            return inflateChecked(input);
+        }
+        catch (IOException checkedFailure) {
+            // Some shipping Qualcomm images contain a standards-compliant raw
+            // DEFLATE body inside an RFC1950-looking container but carry a
+            // nonstandard/stale Adler-32 trailer. Accept that form only if the
+            // raw body itself reaches the DEFLATE end marker and consumes the
+            // entire body exactly. A damaged/truncated body still fails.
+            if (input.length < 6 || (input[1] & 0x20) != 0) {
+                throw checkedFailure;
+            }
+            try {
+                return inflateRawBody(input);
+            }
+            catch (IOException rawFailure) {
+                rawFailure.addSuppressed(checkedFailure);
+                throw rawFailure;
+            }
+        }
+    }
+
+    private static byte[] inflateChecked(byte[] input) throws IOException {
         try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(input));
                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buf = new byte[32 * 1024];
@@ -176,6 +240,44 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                 out.write(buf, 0, n);
             }
             return out.toByteArray();
+        }
+    }
+
+    private static byte[] inflateRawBody(byte[] input) throws IOException {
+        Inflater inflater = new Inflater(true);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            inflater.setInput(input, 2, input.length - 6);
+            byte[] buf = new byte[32 * 1024];
+            while (!inflater.finished()) {
+                int n;
+                try {
+                    n = inflater.inflate(buf);
+                }
+                catch (DataFormatException e) {
+                    throw new IOException("raw DEFLATE body is invalid", e);
+                }
+                if (n > 0) {
+                    if ((long) out.size() + n > MAX_UNPACKED) {
+                        throw new IOException("raw DEFLATE output exceeds safety cap");
+                    }
+                    out.write(buf, 0, n);
+                    continue;
+                }
+                if (inflater.needsDictionary()) {
+                    throw new IOException("raw DEFLATE body unexpectedly needs a dictionary");
+                }
+                if (inflater.needsInput()) {
+                    throw new IOException("raw DEFLATE body ended before the final block");
+                }
+                throw new IOException("raw DEFLATE decoder made no progress");
+            }
+            if (inflater.getRemaining() != 0) {
+                throw new IOException("raw DEFLATE body has trailing bytes before Adler-32");
+            }
+            return out.toByteArray();
+        }
+        finally {
+            inflater.end();
         }
     }
 
@@ -206,6 +308,66 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
             out.add(new Record(off, line, fmtPtr, filePtr, source, format));
         }
         return out;
+    }
+
+
+    private static StringPool findStringPool(byte[] decoded, TaskMonitor monitor)
+            throws CancelledException {
+        List<StringEntry> strings = new ArrayList<>();
+        int printableBytes = 0;
+        int diagnostics = 0;
+        int off = 0;
+        while (off < decoded.length) {
+            if ((off & 0xffff) == 0) {
+                monitor.checkCancelled();
+            }
+            int start = off;
+            while (off < decoded.length) {
+                int c = decoded[off] & 0xff;
+                if (c < 0x20 || c > 0x7e) {
+                    break;
+                }
+                off++;
+            }
+            int len = off - start;
+            boolean terminated = off < decoded.length && decoded[off] == 0;
+            if (terminated && len >= 8) {
+                String text = new String(decoded, start, len, java.nio.charset.StandardCharsets.US_ASCII);
+                strings.add(new StringEntry(start, text));
+                printableBytes += len;
+                if (isDiagnosticString(text)) {
+                    diagnostics++;
+                }
+            }
+            off = Math.max(off + 1, start + 1);
+        }
+        return new StringPool(strings, printableBytes, diagnostics);
+    }
+
+    private static boolean isDiagnosticString(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return lower.contains("assertion ") || lower.contains(" failed") ||
+            lower.contains("ftm_") || lower.contains("rflm_") ||
+            lower.contains("iq capture") || lower.contains("iq_capture") ||
+            lower.contains("fbrx") || lower.contains("vswr") ||
+            lower.contains("diag") || lower.contains("fatal");
+    }
+
+    private static int annotateStringPool(Program program, MemoryBlock overlay, StringPool pool,
+            TaskMonitor monitor) throws CancelledException {
+        int rf = 0;
+        for (StringEntry entry : pool.strings()) {
+            monitor.checkCancelled();
+            if (!isRfInterest(entry.text())) {
+                continue;
+            }
+            Address a = overlay.getStart().add(entry.offset());
+            program.getListing().setComment(a, CommentType.EOL, entry.text());
+            program.getBookmarkManager().setBookmark(a, BookmarkType.ANALYSIS,
+                "VNAOLTE/Qualcomm debug string", compact(entry.text()));
+            rf++;
+        }
+        return rf;
     }
 
     private static int annotate(Program program, MemoryBlock overlay, List<Record> records,

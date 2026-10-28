@@ -36,6 +36,7 @@ public final class Q6ZipDecoder {
     public static final int PAGE_SIZE = 0x1000;
     private static final int PAGE_WORDS = PAGE_SIZE / 4;
     private static final int SAMPLE_PAGES = 192;
+    private static final int AMBIGUOUS_SAMPLE_EXACT_DELTA = 4;
 
     public record Parameters(
             int pageCount,
@@ -137,16 +138,45 @@ public final class Q6ZipDecoder {
             throw new IOException("q6zip header found, but dictionary/pointer layout is not self-consistent");
         }
 
+        List<ScoredParameters> scoredCandidates = new ArrayList<>();
         ScoredParameters best = null;
+        ScoredParameters second = null;
         for (LayoutCandidate layout : layouts) {
             monitor.checkCancelled();
-            ScoredParameters scored = scoreLayout(memory, block, layout, monitor);
-            if (scored != null && better(scored, best)) {
-                best = scored;
+            for (ScoredParameters scored : scoreLayoutCandidates(memory, block, layout, monitor)) {
+                scoredCandidates.add(scored);
+                if (better(scored, best)) {
+                    second = best;
+                    best = scored;
+                }
+                else if (better(scored, second)) {
+                    second = scored;
+                }
             }
         }
         if (best == null) {
             throw new IOException("could not infer q6zip dictionary order/lookback");
+        }
+
+        // Swapping unequal dictionaries leaves the pointer-table offset
+        // unchanged, so both layouts can be structurally valid. A sparse page
+        // sample occasionally reverses a close result. Only in that ambiguous
+        // case, rescore the plausible layouts across all pages before choosing.
+        if (second != null && best.exact - second.exact <= AMBIGUOUS_SAMPLE_EXACT_DELTA) {
+            ScoredParameters fullBest = null;
+            for (ScoredParameters candidate : scoredCandidates) {
+                if (best.exact - candidate.exact > AMBIGUOUS_SAMPLE_EXACT_DELTA) {
+                    continue;
+                }
+                monitor.checkCancelled();
+                ScoredParameters full = scoreAllPages(memory, block, candidate, monitor);
+                if (better(full, fullBest)) {
+                    fullBest = full;
+                }
+            }
+            if (fullBest != null) {
+                best = fullBest;
+            }
         }
 
         Parameters params = new Parameters(
@@ -286,7 +316,7 @@ public final class Q6ZipDecoder {
         return out;
     }
 
-    private static ScoredParameters scoreLayout(Memory memory, MemoryBlock block,
+    private static List<ScoredParameters> scoreLayoutCandidates(Memory memory, MemoryBlock block,
             LayoutCandidate layout, TaskMonitor monitor)
             throws IOException, CancelledException {
         int[] dict1;
@@ -316,16 +346,16 @@ public final class Q6ZipDecoder {
             throw new IOException(e);
         }
 
-      ScoredParameters best = null;
+        List<ScoredParameters> scoredCandidates = new ArrayList<>();
         int samples = Math.min(SAMPLE_PAGES, layout.pageCount);
         long blockEndExclusive = block.getStart().getOffset() + block.getSize();
 
         for (int lb = 4; lb <= 12; lb++) {
             int exact = 0;
             long deviation = 0;
-            for (int s = 0; s < samples; s++) {
+            for (int sample = 0; sample < samples; sample++) {
                 monitor.checkCancelled();
-                int i = (int) (((long) s * layout.pageCount) / samples);
+                int i = (int) (((long) sample * layout.pageCount) / samples);
                 if (i >= layout.pageCount) {
                     i = layout.pageCount - 1;
                 }
@@ -354,12 +384,63 @@ public final class Q6ZipDecoder {
                 }
                 deviation += Math.abs((long) expected - page.length);
             }
-            ScoredParameters scored = new ScoredParameters(layout, lb, meta, exact, deviation);
-            if (better(scored, best)) {
-                best = scored;
+            scoredCandidates.add(new ScoredParameters(layout, lb, meta, exact, deviation));
+        }
+        return scoredCandidates;
+    }
+
+    private static ScoredParameters scoreAllPages(Memory memory, MemoryBlock block,
+            ScoredParameters sampled, TaskMonitor monitor)
+            throws IOException, CancelledException {
+        LayoutCandidate layout = sampled.layout;
+        int[] dict1;
+        int[] dict2;
+        long[] ptrs;
+        try {
+            dict1 = readWords(memory, block.getStart().add(4),
+                1 << layout.dict1Bits);
+            dict2 = readWords(memory,
+                block.getStart().add(4L + 4L * (1 << layout.dict1Bits)),
+                1 << layout.dict2Bits);
+            ptrs = readPointers(memory, block, layout);
+        }
+        catch (MemoryAccessException e) {
+            throw new IOException(e);
+        }
+
+        int exact = 0;
+        long deviation = 0;
+        long blockEndExclusive = block.getStart().getOffset() + block.getSize();
+        for (int i = 0; i < layout.pageCount; i++) {
+            if ((i & 0x7f) == 0) {
+                monitor.checkCancelled();
+                monitor.setMessage(String.format("q6zip: resolving ambiguous parameters %d/%d",
+                    i, layout.pageCount));
+            }
+            long chunkEnd = (i + 1 < ptrs.length) ? ptrs[i + 1] : blockEndExclusive;
+            int[] compressed;
+            try {
+                compressed = readChunkWords(memory, block, ptrs[i], chunkEnd);
+            }
+            catch (MemoryAccessException e) {
+                throw new IOException(e);
+            }
+            int skip = (sampled.metadataHeaders && hasMetadataHeader(compressed)) ? 2 : 0;
+            int expected = (i == layout.pageCount - 1) ? PAGE_WORDS - 1 : PAGE_WORDS;
+            try {
+                int[] page = decodePage(compressed, skip, dict1, dict2, sampled.lookbackBits);
+                if (page.length == PAGE_WORDS ||
+                        (i == layout.pageCount - 1 && page.length == PAGE_WORDS - 1)) {
+                    exact++;
+                }
+                deviation += Math.abs((long) expected - page.length);
+            }
+            catch (IOException e) {
+                deviation += PAGE_WORDS;
             }
         }
-        return best;
+        return new ScoredParameters(layout, sampled.lookbackBits,
+            sampled.metadataHeaders, exact, deviation);
     }
 
     private static long[] readPointers(Memory memory, MemoryBlock block,
@@ -407,46 +488,80 @@ public final class Q6ZipDecoder {
     }
 
     /**
-     * Find the DLPager descriptor:
-     *   runtime_start, runtime_end, compressed_start, compressed_end
+     * Find a self-consistent DLPager mapping near a reference to this q6zip
+     * segment. Older images use the compact four-word layout
+     * {@code runtime_start, runtime_end, compressed_start, compressed_end}.
+     * Newer DLPager tables can place several compressed and runtime ranges in
+     * one descriptor, and the compressed end can exclude alignment padding.
+     *
+     * <p>Rather than keying on either layout, require the descriptor to name
+     * this exact packed start, give it an end no more than one page before the
+     * ELF segment end, and contain a nearby page-aligned range whose span is
+     * exactly {@code page_count * 4096}. Ambiguous distinct runtime ranges are
+     * rejected.
      */
     public static RuntimeRange findRuntimeRange(Memory memory, MemoryBlock block,
             int pages, TaskMonitor monitor) throws CancelledException {
         long compressedStart = block.getStart().getOffset();
-        long compressedEnd = compressedStart + block.getSize();
-        byte[] needle = new byte[8];
+        long blockEnd = compressedStart + block.getSize();
+        long expectedSize = (long) pages * PAGE_SIZE;
+        byte[] needle = new byte[4];
         putLe32(needle, 0, (int) compressedStart);
-        putLe32(needle, 4, (int) compressedEnd);
 
+        RuntimeRange found = null;
         Address search = memory.getMinAddress();
         Address max = memory.getMaxAddress();
         while (search != null && search.compareTo(max) <= 0) {
             monitor.checkCancelled();
             Address hit = memory.findBytes(search, max, needle, null, true, monitor);
             if (hit == null) {
-                return null;
+                break;
             }
             try {
-                Address descriptor = hit.subtract(8);
-                long runtimeStart = u32(memory.getInt(descriptor, false));
-                long runtimeEnd = u32(memory.getInt(descriptor.add(4), false));
-                if ((runtimeStart & (PAGE_SIZE - 1)) == 0 &&
-                        runtimeEnd > runtimeStart &&
-                        runtimeEnd - runtimeStart == (long) pages * PAGE_SIZE) {
-                    return new RuntimeRange(runtimeStart, runtimeEnd);
+                long describedEnd = u32(memory.getInt(hit.add(4), false));
+                long tailPadding = blockEnd - describedEnd;
+                if (Long.compareUnsigned(describedEnd, compressedStart) > 0 &&
+                        Long.compareUnsigned(describedEnd, blockEnd) <= 0 &&
+                        tailPadding >= 0 && tailPadding <= PAGE_SIZE) {
+                    for (int delta = -16; delta <= 32; delta += 4) {
+                        Address pair = hit.add(delta);
+                        long runtimeStart = u32(memory.getInt(pair, false));
+                        long runtimeEnd = u32(memory.getInt(pair.add(4), false));
+                        if ((runtimeStart & (PAGE_SIZE - 1)) != 0 ||
+                                Long.compareUnsigned(runtimeEnd, runtimeStart) <= 0 ||
+                                runtimeEnd - runtimeStart != expectedSize) {
+                            continue;
+                        }
+                        Address runtimeAddress = block.getStart().getAddressSpace()
+                            .getAddress(runtimeStart);
+                        Address runtimeLast = block.getStart().getAddressSpace()
+                            .getAddress(runtimeEnd - 1);
+                        if (memory.getBlock(runtimeAddress) != null ||
+                                memory.getBlock(runtimeLast) != null) {
+                            continue;
+                        }
+                        RuntimeRange candidate = new RuntimeRange(runtimeStart, runtimeEnd);
+                        if (found == null) {
+                            found = candidate;
+                        }
+                        else if (found.start() != candidate.start() ||
+                                found.end() != candidate.end()) {
+                            return null;
+                        }
+                    }
                 }
             }
             catch (Exception ignored) {
-                // Search the next occurrence.
+                // This occurrence is not a readable DLPager descriptor.
             }
             try {
                 search = hit.next();
             }
             catch (Exception e) {
-                return null;
+                break;
             }
-      }
-        return null;
+        }
+        return found;
     }
 
     private static boolean hasMetadataHeader(int[] words) {
