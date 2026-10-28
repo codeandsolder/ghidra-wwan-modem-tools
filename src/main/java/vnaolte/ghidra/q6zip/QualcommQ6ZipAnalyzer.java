@@ -1,7 +1,6 @@
 package vnaolte.ghidra.q6zip;
 
 import java.io.ByteArrayInputStream;
-import java.util.Arrays;
 import java.util.Locale;
 
 import ghidra.app.services.AbstractAnalyzer;
@@ -41,7 +40,7 @@ public final class QualcommQ6ZipAnalyzer extends AbstractAnalyzer {
     public boolean added(Program program, AddressSetView set, TaskMonitor monitor,
             MessageLog log) throws CancelledException {
         Memory memory = program.getMemory();
-        MemoryBlock[] snapshot = Arrays.copyOf(memory.getBlocks(), memory.getBlocks().length);
+        MemoryBlock[] snapshot = memory.getBlocks().clone();
         int mapped = 0;
 
         for (MemoryBlock block : snapshot) {
@@ -58,7 +57,7 @@ public final class QualcommQ6ZipAnalyzer extends AbstractAnalyzer {
                 MemoryBlock existing = memory.getBlock(runtimeStart);
                 if (existing != null) {
                     log.appendMsg(getName(), String.format(Locale.ROOT,
-                        "%s: runtime range 0x%0.x already belongs to %s; not replacing it",
+                        "%s: runtime range 0x%08x already belongs to %s; not replacing it",
                         block.getName(), result.runtime().start(), existing.getName()));
                     continue;
                 }
@@ -87,6 +86,9 @@ public final class QualcommQ6ZipAnalyzer extends AbstractAnalyzer {
                     block.getName(), name, result.runtime().start(), result.runtime().end(),
                     p.version(), p.dict1Bits(), p.dict2Bits(), p.lookbackBits(),
                     p.pageCount(), result.exactPages(), result.shortPages()));
+            }
+            catch (CancelledException e) {
+                throw e;
             }
             catch (Exception e) {
                 log.appendMsg(getName(), block.getName() + ": " + e.getMessage());

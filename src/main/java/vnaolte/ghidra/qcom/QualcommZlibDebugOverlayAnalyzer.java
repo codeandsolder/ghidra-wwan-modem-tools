@@ -172,6 +172,9 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                 }
                 mounted++;
             }
+            catch (CancelledException e) {
+                throw e;
+            }
             catch (Exception e) {
                 log.appendException(e);
             }
@@ -205,7 +208,7 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
         }
     }
 
-    private static byte[] inflate(byte[] input) throws IOException {
+    static byte[] inflate(byte[] input) throws IOException {
         try {
             return inflateChecked(input);
         }
@@ -309,7 +312,6 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
         }
         return out;
     }
-
 
     private static StringPool findStringPool(byte[] decoded, TaskMonitor monitor)
             throws CancelledException {

@@ -11,3 +11,16 @@ if (ghidraInstallDir) {
 else {
     throw new GradleException("GHIDRA_INSTALL_DIR is not defined!")
 }
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:5.14.4"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.14.4"
+}
+
+tasks.named("test") {
+    useJUnitPlatform()
+}

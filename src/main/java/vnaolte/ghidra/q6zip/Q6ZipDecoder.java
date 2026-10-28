@@ -606,6 +606,7 @@ public final class Q6ZipDecoder {
         int lastOut = -1;
 
         try {
+            decodeLoop:
             while (outCount <= PAGE_WORDS - 1) {
                 int op = readOpcode(bits);
                 switch (op) {
@@ -626,7 +627,7 @@ public final class Q6ZipDecoder {
                         int m = bits.get(8);
                         if (m == 0xff) {
                             if (outCount >= PAGE_WORDS - 1) {
-                            break;
+                                break decodeLoop;
                             }
                         }
                         else {

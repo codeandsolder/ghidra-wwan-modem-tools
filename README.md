@@ -52,12 +52,12 @@ Current topics include FBRx, VSWR/S11, IQ/sample capture, couplers/RFFE, XPT/DPD
 
 ## Build
 
-Ghidra 12.2 currently requires Java 25 and Gradle 9.1+:
+Ghidra 12.2 requires Java 25. The checked-in Gradle wrapper pins Gradle 9.1.0 and its distribution checksum:
 
 ```sh
 JAVA_HOME=/path/to/jdk25 \
 GHIDRA_INSTALL_DIR=/path/to/ghidra_12.2_PUBLIC \
-gradle clean buildExtension
+./gradlew clean test buildExtension
 ```
 
 ## Exact EM7455 packed-segment smoke
@@ -71,3 +71,9 @@ analyzeHeadless /tmp/ghidra-vnaolte packed-smoke \
 ```
 
 The verification must end with `EM7455_PACKED_VERIFY=PASS`.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` builds on GitHub-hosted Linux using JDK 25, the checked-in Gradle 9.1.0 wrapper, and the checksum-pinned official Ghidra 12.2 release. CI runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP for seven days.
+
+The five-firmware packed-format matrix remains a local regression because those modem images are intentionally not stored in GitHub. Its fixture hashes and expected outcomes are documented in `docs/PACKED_REGRESSION_MATRIX.md`.

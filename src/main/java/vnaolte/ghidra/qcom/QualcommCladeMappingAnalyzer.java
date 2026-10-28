@@ -162,6 +162,9 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
                             seenBlocks.remove(value);
                         }
                     }
+                    catch (CancelledException e) {
+                        throw e;
+                    }
                     catch (Exception ignored) {
                         // Keep scanning nearby metadata words.
                     }
@@ -203,12 +206,15 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
     private static List<Mapping> findMappings(Memory memory, TaskMonitor monitor)
             throws CancelledException {
         List<Mapping> found = new ArrayList<>();
-        Map<Long, MemoryBlock> starts = new HashMap<>();
+        Map<Long, Double> starts = new HashMap<>();
         Set<MemoryBlock> packedCandidates = new HashSet<>();
         for (MemoryBlock block : memory.getBlocks()) {
             monitor.checkCancelled();
-            if (!block.isInitialized() || block.getSize() < MIN_REGION ||
-                    entropy(memory, block, monitor) < MIN_ENTROPY) {
+            if (!block.isInitialized() || block.getSize() < MIN_REGION) {
+                continue;
+            }
+            double packedEntropy = entropy(memory, block, monitor);
+            if (packedEntropy < MIN_ENTROPY) {
                 continue;
             }
             packedCandidates.add(block);
@@ -217,7 +223,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
             long maxStart = Math.min(blockStart + MAX_PACKED_START_SLACK, blockEnd - 1);
             for (long candidate = blockStart; candidate <= maxStart;
                     candidate += PAGE_MASK + 1) {
-                starts.put(candidate, block);
+                starts.put(candidate, packedEntropy);
             }
         }
         if (starts.isEmpty()) {
@@ -256,14 +262,15 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
                 int firstAligned = (int) ((4 - (absoluteStart & 3)) & 3);
                 for (int off = firstAligned; off < scan; off += 4) {
                     long compressedStart = u32(buf, off);
-                    if (!starts.containsKey(compressedStart)) {
+                    Double packedEntropy = starts.get(compressedStart);
+                    if (packedEntropy == null) {
                         continue;
                     }
                     long compressedEnd = u32(buf, off + 4);
                     long runtimeStart = u32(buf, off + 8);
                     long runtimeEnd = u32(buf, off + 12);
                     Mapping candidate = validate(memory, chunkStart.add(off),
-                        compressedStart, compressedEnd, runtimeStart, runtimeEnd, monitor);
+                        compressedStart, compressedEnd, runtimeStart, runtimeEnd, packedEntropy);
                     if (candidate != null) {
                         found.add(candidate);
                     }
@@ -279,7 +286,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
 
     private static Mapping validate(Memory memory, Address tupleAddress,
             long compressedStart, long compressedEnd, long runtimeStart, long runtimeEnd,
-            TaskMonitor monitor) throws CancelledException {
+            double packedEntropy) {
         if (((compressedStart | compressedEnd | runtimeStart | runtimeEnd) & PAGE_MASK) != 0 ||
                 Long.compareUnsigned(compressedEnd, compressedStart) <= 0 ||
                 Long.compareUnsigned(runtimeEnd, runtimeStart) <= 0) {
@@ -319,12 +326,8 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
         if (memory.getBlock(runtimeAddress) != null || memory.getBlock(runtimeLast) != null) {
             return null;
         }
-        double entropy = entropy(memory, packed, monitor);
-        if (entropy < MIN_ENTROPY) {
-            return null;
-        }
         return new Mapping(tupleAddress, compressedStart, compressedEnd,
-            runtimeStart, runtimeEnd, packed, entropy);
+            runtimeStart, runtimeEnd, packed, packedEntropy);
     }
 
     private static double entropy(Memory memory, MemoryBlock block, TaskMonitor monitor)
