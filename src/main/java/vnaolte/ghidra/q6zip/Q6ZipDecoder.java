@@ -455,7 +455,7 @@ public final class Q6ZipDecoder {
             if (p < base + layout.dataOffset || p >= endExclusive ||
                     (i > 0 && p <= prev)) {
                 throw new IOException(String.format(
-                    "invalid q6zip page pointer[%d]=0x%0x", i, p));
+                    "invalid q6zip page pointer[%d]=0x%08x", i, p));
             }
             ptrs[i] = p;
             prev = p;
@@ -697,7 +697,7 @@ public final class Q6ZipDecoder {
                         out[outCount++] = (prev & ~0xffff) | m;
                     }
                     default -> throw new IOException(String.format(
-                        "unhandled q6zip opcode 0x%0x", op));
+                        "unhandled q6zip opcode 0x%x", op));
                 }
             }
         }
@@ -724,7 +724,7 @@ public final class Q6ZipDecoder {
                 return key;
             }
         }
-        throw new IOException(String.format("invalid q6zip opcode prefix 0x%0x", code));
+        throw new IOException(String.format("invalid q6zip opcode prefix 0x%x", code));
     }
 
     private static boolean isOpcode(int key) {
