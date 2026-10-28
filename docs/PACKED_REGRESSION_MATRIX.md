@@ -26,3 +26,7 @@ The corpus deliberately exercises incompatible-looking generations instead of fi
 - negative cases are part of the contract: an analyzer must decline unsupported layouts cleanly rather than create a plausible-looking wrong mapping.
 
 Run `ProbeQualcommPacked.java` with `-noanalysis` against any split `modem.mdt` to print the analyzer decisions and created blocks/bookmarks. Exact per-fixture assertions remain useful for pinned images; the generic probe is intended to expose behavior on new firmware without baking model names into the analyzers.
+
+## CI fixture location
+
+The private Acer runner keeps a block-cloned copy of the corpus under `/srv/ci/vnaolte-fixtures`. `ci/run-packed-regression.sh` verifies the pinned key-file hashes before analysis, creates a throwaway Ghidra HOME, installs only the built VNAOLTE extension plus the pinned local Qualcomm loader, and asserts the structural outcomes above. Firmware bytes are not stored in Git and are not uploaded as Actions artifacts.
