@@ -19,7 +19,12 @@ done
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 unzip -p "$zip_path" VnaolteFirmware/lib/VnaolteFirmware.jar > "$work/VnaolteFirmware.jar"
-jar_members=$(jar tf "$work/VnaolteFirmware.jar")
+jar_bin=${JAVA_HOME:+$JAVA_HOME/bin/jar}
+if [[ ! -x "$jar_bin" ]]; then
+  jar_bin=$(command -v jar || true)
+fi
+[[ -n "$jar_bin" && -x "$jar_bin" ]] || { echo "jar tool not found" >&2; exit 1; }
+jar_members=$("$jar_bin" tf "$work/VnaolteFirmware.jar")
 for required in \
   vnaolte/ghidra/q6zip/Q6ZipDecoder.class \
   vnaolte/ghidra/qcom/QualcommCladeMappingAnalyzer.class \

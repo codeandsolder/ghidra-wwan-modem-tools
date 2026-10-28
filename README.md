@@ -74,6 +74,6 @@ The verification must end with `EM7455_PACKED_VERIFY=PASS`.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` builds on the repo-scoped Acer self-hosted Linux runner using JDK 25, the checked-in Gradle 9.1.0 wrapper, and the checksum-pinned official Ghidra 12.2 release. CI runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP for seven days.
+`.github/workflows/ci.yml` builds on the repo-scoped Acer self-hosted Linux runner using root-owned, fingerprint-pinned local JDK 25 and Ghidra 12.2 toolchains plus the checked-in Gradle 9.1.0 wrapper. CI runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP for seven days.
 
 The five-firmware packed-format matrix also runs in CI against a hash-pinned fixture corpus kept locally on the Acer runner; modem firmware is never uploaded to GitHub. Each run uses a throwaway Ghidra user configuration so CI cannot modify the interactive Ghidra setup. Fixture hashes and expected outcomes are documented in `docs/PACKED_REGRESSION_MATRIX.md`.
