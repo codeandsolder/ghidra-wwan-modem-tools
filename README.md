@@ -36,6 +36,8 @@ The regression corpus currently covers Sierra EM7455/MDM9x35, Quectel EG25-G/MDM
 
 The exact cross-vendor expectations and fixture hashes are recorded in [`docs/PACKED_REGRESSION_MATRIX.md`](docs/PACKED_REGRESSION_MATRIX.md).
 
+A Rust-first migration assessment for the extension and headless tooling is in [`docs/RUST_PORT.md`](docs/RUST_PORT.md). The recommended target keeps Ghidra as the mature ProgramDB/decompiler engine while moving format logic, RF archaeology, reports and orchestration into Rust.
+
 `VNAOLTE Qualcomm RF Triage` consumes QDig's recovered Qualcomm debug-descriptor comments after reference analysis. It follows descriptor xrefs back to containing functions, adds `VNAOLTE:*` function tags, creates `VNAOLTE/RF` analysis bookmarks, and preserves source-file/line/message evidence in repeatable function comments. It does not guess function names.
 
 Current topics include FBRx, VSWR/S11, IQ/sample capture, couplers/RFFE, XPT/DPD, WTR3925, and FTM RF-test code.

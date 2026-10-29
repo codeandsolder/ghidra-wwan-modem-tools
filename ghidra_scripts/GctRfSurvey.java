@@ -382,6 +382,10 @@ public class GctRfSurvey extends GhidraScript {
                 }
                 offset += got;
             }
+            if (!overflow && runStart != null && run.length() >= minLength) {
+                String text = run.toString();
+                if (!topicsFor(text).isEmpty()) out.add(new AsciiString(runStart, text));
+            }
         }
         return out;
     }

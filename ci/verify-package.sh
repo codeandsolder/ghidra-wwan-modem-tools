@@ -10,6 +10,7 @@ for required in \
   VnaolteFirmware/lib/VnaolteFirmware.jar \
   VnaolteFirmware/docs/PACKED_REGRESSION_MATRIX.md \
   VnaolteFirmware/docs/GCT_GDM7243_RF.md \
+  VnaolteFirmware/docs/RUST_PORT.md \
   VnaolteFirmware/ghidra_scripts/ProbeQualcommPacked.java \
   VnaolteFirmware/ghidra_scripts/GctRfSurvey.java \
   VnaolteFirmware/ghidra_scripts/DecompileFunctions.java \

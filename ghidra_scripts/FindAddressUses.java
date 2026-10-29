@@ -154,6 +154,7 @@ public class FindAddressUses extends GhidraScript {
                 out.println();
             }
         }
+        println("FIND_ADDRESS_USES_REPORT=" + output.toAbsolutePath());
     }
     private static long parseHexAddress(String text) {
         return Long.parseUnsignedLong(text.replaceFirst("(?i)^0x", ""), 16);

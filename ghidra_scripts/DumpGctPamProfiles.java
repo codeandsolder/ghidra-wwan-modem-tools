@@ -189,11 +189,17 @@ public class DumpGctPamProfiles extends GhidraScript {
         long target = flows[0].getOffset();
         if (target != MEMCPY && target != MEMSET) return false;
 
-        int length = PROFILE_SIZE;
+        long rawLength = emu.readRegister("r2").longValue();
+        if (rawLength < 0 || rawLength > 0x10000L) {
+            throw new IllegalStateException("unreasonable helper length " + rawLength + " at " + ins.getAddress());
+        }
+        int length = Math.toIntExact(rawLength);
         long dstValue = emu.readRegister("r0").longValue();
         Address dst = space.getAddress(dstValue);
         if (target == MEMSET) {
+            int fill = (int)(emu.readRegister("r1").longValue() & 0xffL);
             byte[] data = new byte[length];
+            Arrays.fill(data, (byte)fill);
             emu.writeMemory(dst, data);
         } else {
             Address src = space.getAddress(emu.readRegister("r1").longValue());
@@ -213,6 +219,9 @@ public class DumpGctPamProfiles extends GhidraScript {
         String text = ins.toString().toLowerCase(Locale.ROOT);
         if ((mnemonic.startsWith("pop") && text.contains("pc")) ||
             (mnemonic.equals("bx") && text.contains("lr"))) {
+            // ARM EmulatorHelper can fault while changing ISA mode during a Thumb return.
+            // The constructor's caller is an artificial sentinel, so short-circuit the
+            // top-level return rather than asking the emulator to execute it.
             emu.writeRegister("pc", RETURN_SENTINEL);
             Register tmode = currentProgram.getLanguage().getRegister("TMode");
             if (tmode != null) emu.setContextRegister(tmode, BigInteger.ONE);
