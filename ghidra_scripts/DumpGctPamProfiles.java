@@ -99,7 +99,7 @@ public class DumpGctPamProfiles extends GhidraScript {
                 out.printf(Locale.ROOT,
                     "## PAM %d @ `%s` — default USID `0x%02x`, product `0x%02x`, manufacturer `0x%02x`%n%n",
                     pam.id(), pam.entry(), u8(identity[2]), u8(identity[4]), u8(identity[5]));
-                out.println("| label | kHz | registers | bank 0 | bank 1 | bank 2 | bank 3 | raw profile |");
+                out.println("| label | kHz | registers | H | M | L | off | raw profile |");
                 out.println("|---|---:|---|---|---|---|---|---|");
                 for (Result result : results) {
                     if (result.pam().id() != pam.id()) continue;

@@ -55,6 +55,7 @@ For GCT GDM7243-family firmware, `GctRfSurvey.java` performs the equivalent RF a
 - `DecompileFunctions.java` — decompiles exact function names or addresses with immediate callers/callees; use `thumb:ADDRESS` (or an odd ARM Thumb pointer) to recover missing Thumb function boundaries explicitly.
 - `DisassembleRanges.java` — emits bounded assembly for exact address ranges inside giant dispatchers or partially recovered functions.
 - `FindAddressUses.java` — finds direct and ARM `MOVW`/`MOVT`-constructed uses of absolute addresses, including nearby prefixed diagnostic-string records.
+- `FindScalarUses.java` — finds scalar/immediate operands (optionally inside an address range), useful for MIPI IDs/register values and constants that have no data xrefs.
 - `DumpGctPamProfiles.java` — emulates GDM7243 PAM profile constructors for chosen RF frequencies, decodes their 0x22-byte MIPI register/value banks, and reports the firmware default USID/product/manufacturer identity rows.
 
 ## Build

@@ -15,6 +15,7 @@ for required in \
   VnaolteFirmware/ghidra_scripts/DecompileFunctions.java \
   VnaolteFirmware/ghidra_scripts/DisassembleRanges.java \
   VnaolteFirmware/ghidra_scripts/FindAddressUses.java \
+  VnaolteFirmware/ghidra_scripts/FindScalarUses.java \
   VnaolteFirmware/ghidra_scripts/DumpGctPamProfiles.java; do
   grep -Fxq "$required" <<<"$members" || {
     echo "missing package member: $required" >&2
