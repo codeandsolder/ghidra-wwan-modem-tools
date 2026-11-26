@@ -31,7 +31,7 @@ import ghidra.util.task.TaskMonitor;
         "and maps database strings back into the current Ghidra program."
 )
 public final class MtkMddbPlugin extends ProgramPlugin {
-    private static final String TITLE = "MediaTek MDDB";
+    static final String TITLE = "MediaTek MDDB";
     private static final String OPEN_PROGRAM_FIRST = "Open a program first.";
     private final MtkMddbProvider provider;
 
@@ -85,7 +85,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                     }
                     SwingUtilities.invokeLater(() -> goTo(hits.get(0)));
                 } catch (CancelledException e) {
-                    // User cancelled the task.
+                    monitor.cancel();
                 } catch (IllegalArgumentException e) {
                     Msg.showError(this, provider.getComponent(), TITLE, "Program search failed", e);
                 }
@@ -112,7 +112,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                     }
                     SwingUtilities.invokeLater(() -> goTo(refs.get(0)));
                 } catch (CancelledException e) {
-                    // User cancelled the task.
+                    monitor.cancel();
                 } catch (IllegalArgumentException e) {
                     Msg.showError(this, provider.getComponent(), TITLE, "Code xref search failed", e);
                 }
@@ -142,7 +142,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                                 String.join("\n", summary.imported()));
                     }
                 } catch (CancelledException e) {
-                    // User cancelled the task.
+                    monitor.cancel();
                 } catch (RocksDBException | IllegalArgumentException e) {
                     Msg.showError(this, provider.getComponent(), TITLE,
                         "Data-type import failed", e);
@@ -176,7 +176,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                     }
                     Msg.showInfo(this, provider.getComponent(), TITLE, message);
                 } catch (CancelledException e) {
-                    // User cancelled the task.
+                    monitor.cancel();
                 } catch (IllegalArgumentException e) {
                     Msg.showError(this, provider.getComponent(), TITLE, "Annotation failed", e);
                 }

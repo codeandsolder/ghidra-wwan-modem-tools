@@ -190,10 +190,10 @@ final class MtkMddbProvider extends ComponentProvider {
                     String summary = get();
                     statusLabel.setText("Comparison complete: " + path);
                     Msg.showInfo(this, panel, "MediaTek MDDB comparison", summary);
-                } catch (InterruptedException | ExecutionException | CancellationException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    statusLabel.setText("Interrupted");
+                } catch (ExecutionException | CancellationException e) {
                     statusLabel.setText("Comparison failed: " + e.getMessage());
                     Msg.showError(this, panel, TITLE, "Comparison failed", e);
                 }
@@ -241,10 +241,10 @@ final class MtkMddbProvider extends ComponentProvider {
                     }
                     statusLabel.setText("Loaded " + opened.columnFamilies().size() +
                         " column families; DATAA " + opened.dataASize() + " bytes");
-                } catch (InterruptedException | ExecutionException | CancellationException | IOException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    statusLabel.setText("Interrupted");
+                } catch (ExecutionException | CancellationException | IOException e) {
                     statusLabel.setText("Open failed: " + e.getMessage());
                     Msg.showError(this, panel, TITLE, "Failed to open " + path, e);
                 }
@@ -294,10 +294,10 @@ final class MtkMddbProvider extends ComponentProvider {
                     }
                     statusLabel.setText("Found " + rows.size() +
                         (rows.size() >= SEARCH_LIMIT ? " matches (limit reached)" : " matches"));
-                } catch (InterruptedException | ExecutionException | CancellationException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    statusLabel.setText("Interrupted");
+                } catch (ExecutionException | CancellationException e) {
                     statusLabel.setText("Search failed: " + e.getMessage());
                     Msg.showError(this, panel, TITLE, "Search failed", e);
                 }
