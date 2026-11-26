@@ -5,7 +5,7 @@ import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.NAME_ATTR;
 import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SIZE_ATTR;
 import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SYMLINK_DEST_ATTR;
 
-import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -55,7 +55,6 @@ public final class SierraYaffsFileSystem implements GFileSystem {
     private static final int TYPE_HARDLINK = 4;
 
     private final FSRLRoot fsFSRL;
-    @SuppressWarnings("unused")
     private final FileSystemService fsService;
     private final FileSystemIndexHelper<Node> fsIndex;
     private final FileSystemRefManager refManager = new FileSystemRefManager(this);
@@ -244,32 +243,29 @@ public final class SierraYaffsFileSystem implements GFileSystem {
 
     private static String resolvePath(Node node, Map<Long, Node> nodes,
             Map<Long, String> paths, Set<Long> visiting) {
-        String cached = paths.get(node.objectId);
-        if (cached != null) {
-            return cached;
-        }
-        if (!visiting.add(node.objectId) || node.name == null || node.name.isBlank()) {
-            return null;
-        }
-
+        List<Node> pending = new ArrayList<>();
+        Node current = node;
         String parent;
-        if (node.parentId == 1) {
-            parent = "";
+        while (true) {
+            parent = paths.get(current.objectId);
+            if (parent != null) {
+                break;
+            }
+            if (!visiting.add(current.objectId) || current.name == null || current.name.isBlank()) {
+                return null;
+            }
+            pending.add(current);
+            current = nodes.get(current.parentId);
+            if (current == null || !current.isDirectory()) {
+                return null;
+            }
         }
-        else {
-            Node parentNode = nodes.get(node.parentId);
-            parent = parentNode == null ? null :
-                resolvePath(parentNode, nodes, paths, visiting);
+        for (int i = pending.size() - 1; i >= 0; i--) {
+            Node item = pending.get(i);
+            parent = parent.isEmpty() ? sanitize(item.name) : parent + "/" + sanitize(item.name);
+            paths.put(item.objectId, parent);
         }
-        visiting.remove(node.objectId);
-        if (parent == null) {
-            return null;
-        }
-
-        String path = parent.isEmpty() ? sanitize(node.name) :
-            parent + "/" + sanitize(node.name);
-        paths.put(node.objectId, path);
-        return path;
+        return parent;
     }
 
     private static boolean newer(long seqA, long recA, long seqB, long recB) {
@@ -297,45 +293,50 @@ public final class SierraYaffsFileSystem implements GFileSystem {
             return null;
         }
 
+        Set<Long> visited = new HashSet<>();
+        while (node.type == TYPE_HARDLINK) {
+            monitor.checkCancelled();
+            if (!visited.add(node.objectId)) {
+                throw new IOException("Cyclic YAFFS hardlink: " + file.getPath());
+            }
+            GFile target = filesByObjectId.get(node.equivalentId);
+            node = target == null ? null : fsIndex.getMetadata(target);
+            if (node == null || node.isDirectory()) {
+                throw new IOException("Invalid YAFFS hardlink target: " + file.getPath());
+            }
+        }
         if (node.type == TYPE_SYMLINK) {
             return new ByteArrayProvider(
                 node.alias.getBytes(StandardCharsets.UTF_8), file.getFSRL());
         }
-        if (node.type == TYPE_HARDLINK) {
-            GFile target = filesByObjectId.get(node.equivalentId);
-            if (target == null) {
-                throw new IOException("YAFFS hardlink target object " +
-                    node.equivalentId + " not found");
-            }
-            return getByteProvider(target, monitor);
-        }
         if (node.type != TYPE_FILE) {
             return new ByteArrayProvider(new byte[0], file.getFSRL());
         }
-        if (node.size > Integer.MAX_VALUE) {
-            throw new IOException("YAFFS file too large to materialize: " + file.getPath());
+        if (node.size < 0 || node.size > (long) node.pages.size() * DATA_SIZE) {
+            throw new IOException("Invalid YAFFS file size or missing chunks: " + file.getPath());
         }
+        Node source = node;
+        return fsService.getDerivedByteProviderPush(provider.getFSRL(), file.getFSRL(),
+            "yaffs-object-" + source.objectId, source.size, out -> writeFile(source, out, monitor), monitor);
+    }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream((int) node.size);
+    private void writeFile(Node node, OutputStream out, TaskMonitor monitor)
+            throws IOException, CancelledException {
         long remaining = node.size;
         for (long chunk = 1; remaining > 0; chunk++) {
             monitor.checkCancelled();
             PageRef page = node.pages.get(chunk);
             if (page == null) {
-                throw new IOException("Missing YAFFS chunk " + chunk + " for " +
-                    file.getPath() + " (object " + node.objectId + ")");
+                throw new IOException("Missing YAFFS chunk " + chunk + " for object " + node.objectId);
             }
             int wanted = (int) Math.min(remaining, DATA_SIZE);
             int count = Math.min(wanted, page.byteCount == 0 ? DATA_SIZE : page.byteCount);
-            byte[] data = provider.readBytes(page.recordIndex * RECORD_SIZE, count);
-            out.write(data, 0, data.length);
-            remaining -= count;
             if (count != wanted) {
-                throw new IOException("Short YAFFS chunk " + chunk + " for " +
-                    file.getPath());
+                throw new IOException("Short YAFFS chunk " + chunk + " for object " + node.objectId);
             }
+            out.write(provider.readBytes(page.recordIndex * RECORD_SIZE, count));
+            remaining -= count;
         }
-        return new ByteArrayProvider(out.toByteArray(), file.getFSRL());
     }
 
     @Override
@@ -388,7 +389,8 @@ public final class SierraYaffsFileSystem implements GFileSystem {
     }
 
     private static String sanitize(String s) {
-        return s.replace('/', '_').replace('\\', '_');
+        String name = s.replace('/', '_').replace('\\', '_');
+        return ".".equals(name) || "..".equals(name) ? "_" + name : name;
     }
 
     @Override

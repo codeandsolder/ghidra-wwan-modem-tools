@@ -130,7 +130,8 @@ public final class SierraCweFileSystem implements GFileSystem {
     }
 
     private InputStream zlibStream(Entry entry) throws IOException {
-        return new InflaterInputStream(provider.getInputStream(entry.payloadOffset));
+        ByteProvider bounded = new ByteProviderWrapper(provider, entry.payloadOffset, entry.storedSize);
+        return new InflaterInputStream(bounded.getInputStream(0));
     }
 
     @Override
