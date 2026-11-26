@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   java-quality:
-    uses: codeandsolder/ci-workflows/.github/workflows/java-quality.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/source-quality.yml@ce05e1ab3124112fcd04a34d0b365a880ebed4bd # main
   release:
     needs: java-quality
     runs-on: ubuntu-latest
