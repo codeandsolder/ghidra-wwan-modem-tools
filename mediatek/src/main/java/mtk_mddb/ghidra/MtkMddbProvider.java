@@ -222,7 +222,8 @@ final class MtkMddbProvider extends ComponentProvider {
         if (disposed) {
             return;
         }
-        long generation = ++openGeneration;
+        openGeneration++;
+        long generation = openGeneration;
         setVisible(true);
         statusLabel.setText("Opening " + path + " ...");
         new SwingWorker<MddbDatabase, Void>() {
@@ -278,7 +279,8 @@ final class MtkMddbProvider extends ComponentProvider {
             statusLabel.setText("Enter text to search for.");
             return;
         }
-        long generation = ++searchGeneration;
+        searchGeneration++;
+        long generation = searchGeneration;
         statusLabel.setText("Searching...");
         new SwingWorker<List<DisplayResult>, Void>() {
             @Override
