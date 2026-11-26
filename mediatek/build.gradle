@@ -1,16 +1,7 @@
 import java.util.zip.ZipFile
 
-def detectRocksPlatform = {
-    def os = System.getProperty("os.name").toLowerCase(Locale.ROOT)
-    if (os.contains("win")) return "win64"
-    if (os.contains("mac") || os.contains("darwin")) return "osx"
-    if (os.contains("linux")) return "linux64"
-    throw new GradleException("Unsupported build host: specify -ProcksdbPlatform explicitly")
-}
-def rocksPlatform = providers.gradleProperty("rocksdbPlatform").orElse(providers.provider { detectRocksPlatform() }).get()
-if (!(rocksPlatform in ["linux64", "win64", "osx"])) {
-    throw new GradleException("Unknown RocksDB platform: " + rocksPlatform)
-}
+evaluationDependsOn(':core')
+def rocksPlatform = project(':core').rocksPlatform
 
 // The upstream extension task packages project lib/. Keep that directory
 // generated from the exact selected dependencies rather than appending jars
@@ -24,8 +15,7 @@ configurations.implementation.extendsFrom(bundledLibraries)
 
 
 dependencies {
-    add("bundledLibraries", "org.tukaani:xz:1.10")
-    add("bundledLibraries", "org.rocksdb:rocksdbjni:11.1.1:${rocksPlatform}")
+    add('bundledLibraries', project(':core'))
 }
 
 def stageExtensionLibraries = tasks.register("stageExtensionLibraries", Sync) {
@@ -41,8 +31,8 @@ tasks.named("buildExtension") { dependsOn stageExtensionLibraries }
 
 
 for (pattern in [
-    ".git/**", ".github/**", ".gradle/**", ".cache/**", ".venv/**", ".pytest_cache/**", ".ruff_cache/**",
-    "dist/**", "tests/**", "src/test/**", "src/mtk_mddb/**", "pyproject.toml", "uv.lock",
+    ".git/**", ".github/**", ".gradle/**", ".cache/**",
+    "dist/**", "src/test/**",
     "gradle/**", "gradlew", "gradlew.bat"
 ]) {
     buildExtension.exclude pattern

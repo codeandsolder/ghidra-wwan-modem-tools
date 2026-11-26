@@ -1,0 +1,4 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>codeandsolder/ci-workflows:renovate-fleet"]
+}

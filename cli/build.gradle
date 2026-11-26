@@ -1,0 +1,17 @@
+plugins { id 'application' }
+evaluationDependsOn(':core')
+
+dependencies {
+    implementation project(':core')
+    implementation 'com.google.code.gson:gson:2.15.0'
+}
+application {
+    mainClass = 'mtk_mddb.cli.Main'
+    applicationName = 'mtk-mddb'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+distributions {
+    main { distributionBaseName = "mtk-mddb-cli-${project(':core').rocksPlatform}" }
+}
+tasks.named('distZip') { dependsOn 'check' }
+tasks.named('distTar') { enabled = false }

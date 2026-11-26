@@ -57,7 +57,7 @@ final class SierraCweHeader {
     }
 
     static SierraCweHeader read(ByteProvider provider, long offset) throws IOException {
-        if (offset < 0 || offset + HEADER_SIZE > provider.length()) {
+        if (offset < 0 || offset > provider.length() - HEADER_SIZE) {
             throw new IOException("Truncated CWE header at 0x" + Long.toHexString(offset));
         }
         byte[] h = provider.readBytes(offset, HEADER_SIZE);

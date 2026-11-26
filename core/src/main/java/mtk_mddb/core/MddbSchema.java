@@ -1,4 +1,4 @@
-package mtk_mddb.ghidra;
+package mtk_mddb.core;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -16,7 +16,7 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 
-final class MddbSchema {
+public final class MddbSchema {
     private static final int TYPE_CHAIN_LIMIT = 16;
     private static final int STRUCT_HEADER_SIZE = 13;
     private static final int FIELD_DESCRIPTOR_SIZE = 25;
@@ -32,23 +32,23 @@ final class MddbSchema {
         }
     }
 
-    record StructField(long offset, String typeName, String fieldName, long arrayCount) {
+    public record StructField(long offset, String typeName, String fieldName, long arrayCount) {
         String summary() {
             String suffix = arrayCount > 0 ? "[" + arrayCount + "]" : "";
             return String.format("+0x%x %s %s%s", offset, typeName, fieldName, suffix);
         }
     }
 
-    record ResolvedType(String name, List<String> aliases, String kind, long size, long alignment,
+    public record ResolvedType(String name, List<String> aliases, String kind, long size, long alignment,
             List<StructField> fields) {
         String summary() {
             return new StructLayout(kind, size, alignment, fields).summary();
         }
     }
 
-    record EnumValue(long value, String name) {}
+    public record EnumValue(long value, String name) {}
 
-    record EnumDefinition(String name, int size, List<EnumValue> values) {}
+    public record EnumDefinition(String name, int size, List<EnumValue> values) {}
 
     private record StructLayout(String kind, long size, long alignment, List<StructField> fields) {
         String summary() {
@@ -154,7 +154,7 @@ final class MddbSchema {
         return String.join("; ", summaries);
     }
 
-    ResolvedType resolveTypeForSpMatch(byte[] spKey, int offset) throws RocksDBException {
+    synchronized ResolvedType resolveTypeForSpMatch(byte[] spKey, int offset) throws RocksDBException {
         if (spKey.length != 4) {
             return null;
         }
@@ -165,13 +165,13 @@ final class MddbSchema {
         return resolveType(stringRef(bucket, offset));
     }
 
-    ResolvedType resolveTypeByName(String name) throws RocksDBException {
+    synchronized ResolvedType resolveTypeByName(String name) throws RocksDBException {
         ensureTypeNameIndex();
         Integer ref = typeRefsByName.get(name);
         return ref == null ? null : resolveType(ref);
     }
 
-    Map<String, String> semanticEnumSignatures() throws RocksDBException {
+    synchronized Map<String, String> semanticEnumSignatures() throws RocksDBException {
         ensureTypeNameIndex();
         Map<String, String> out = new java.util.TreeMap<>();
         for (Map.Entry<String, Integer> entry : typeRefsByName.entrySet()) {
@@ -243,7 +243,7 @@ final class MddbSchema {
         return new EnumDefinition(name, size, List.copyOf(members));
     }
 
-    EnumDefinition resolveEnumByName(String name) throws RocksDBException {
+    synchronized EnumDefinition resolveEnumByName(String name) throws RocksDBException {
         ensureTypeNameIndex();
         Integer ref = typeRefsByName.get(name);
         if (ref == null) {
@@ -270,7 +270,7 @@ final class MddbSchema {
         return null;
     }
 
-    List<EnumDefinition> enumDefinitionsForSpMatch(byte[] spKey, int offset) throws RocksDBException {
+    synchronized List<EnumDefinition> enumDefinitionsForSpMatch(byte[] spKey, int offset) throws RocksDBException {
         if (spKey.length != 4) {
             return List.of();
         }

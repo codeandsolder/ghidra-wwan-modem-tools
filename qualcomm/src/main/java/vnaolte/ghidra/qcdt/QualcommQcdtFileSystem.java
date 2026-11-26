@@ -89,7 +89,7 @@ public final class QualcommQcdtFileSystem implements GFileSystem {
                 offset = u32(e, 16);
                 size = u32(e, 20);
             }
-            if (size == 0 || offset < tableEnd || offset + size > provider.length()) {
+            if (size < 8 || offset < tableEnd || offset + size > provider.length()) {
                 throw new IOException("QCDT entry " + i + " points outside image");
             }
             byte[] fdtHead = provider.readBytes(offset, 8);
@@ -98,7 +98,7 @@ public final class QualcommQcdtFileSystem implements GFileSystem {
                 throw new IOException("QCDT entry " + i + " does not point at FDT magic");
             }
             long fdtSize = u32be(fdtHead, 4);
-            if (fdtSize == 0 || fdtSize > size) {
+            if (fdtSize < 40 || fdtSize > size) {
                 throw new IOException("QCDT entry " + i + " has invalid FDT size");
             }
 

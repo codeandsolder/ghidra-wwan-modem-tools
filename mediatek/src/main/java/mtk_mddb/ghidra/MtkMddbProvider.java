@@ -1,5 +1,8 @@
 package mtk_mddb.ghidra;
 
+import mtk_mddb.core.MddbDatabase;
+import mtk_mddb.core.MddbSearchResult;
+
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
@@ -45,7 +48,10 @@ final class MtkMddbProvider extends ComponentProvider {
     private final JComboBox<String> columnFamily = new JComboBox<>(new String[] {"All"});
     private final DefaultTableModel model;
     private final JTable table;
-    private volatile MddbDatabase database;
+    private DatabaseSession database;
+    private long openGeneration;
+    private long searchGeneration;
+    private boolean disposed;
     private volatile Path databasePath;
     private volatile List<DisplayResult> displayedResults = List.of();
     private record DisplayResult(MddbSearchResult match, String schema) {}
@@ -213,6 +219,11 @@ final class MtkMddbProvider extends ComponentProvider {
     }
 
     void open(Path path) {
+        if (disposed) {
+            return;
+        }
+        openGeneration++;
+        long generation = openGeneration;
         setVisible(true);
         statusLabel.setText("Opening " + path + " ...");
         new SwingWorker<MddbDatabase, Void>() {
@@ -225,12 +236,15 @@ final class MtkMddbProvider extends ComponentProvider {
             protected void done() {
                 try {
                     MddbDatabase opened = get();
-                    MddbDatabase old = database;
-                    database = opened;
-                    databasePath = path;
-                    if (old != null) {
-                        old.close();
+                    if (disposed || generation != openGeneration) {
+                        opened.close();
+                        return;
                     }
+                    DatabaseSession old = database;
+                    database = new DatabaseSession(opened);
+                    searchGeneration++;
+                    databasePath = path;
+                    closeSession(old);
                     sourceLabel.setText(path.toString());
                     displayedResults = List.of();
                     model.setRowCount(0);
@@ -253,10 +267,11 @@ final class MtkMddbProvider extends ComponentProvider {
     }
 
     private void runSearch() {
-        MddbDatabase db = database;
+        DatabaseSession session = database;
         String needle = searchField.getText();
-        String cf = (String) columnFamily.getSelectedItem();
-        if (db == null) {
+        List<String> families = columnFamily.getSelectedIndex() <= 0 ? List.of() :
+            List.of((String) columnFamily.getSelectedItem());
+        if (session == null) {
             statusLabel.setText("Open an EDB first.");
             return;
         }
@@ -264,20 +279,28 @@ final class MtkMddbProvider extends ComponentProvider {
             statusLabel.setText("Enter text to search for.");
             return;
         }
+        searchGeneration++;
+        long generation = searchGeneration;
         statusLabel.setText("Searching...");
         new SwingWorker<List<DisplayResult>, Void>() {
             @Override
             protected List<DisplayResult> doInBackground() throws Exception {
-                List<MddbSearchResult> matches = db.search(needle, cf, SEARCH_LIMIT);
-                List<DisplayResult> enriched = new ArrayList<>(matches.size());
-                for (MddbSearchResult match : matches) {
-                    enriched.add(new DisplayResult(match, db.schemaInfo(match)));
+                try (DatabaseSession.Lease lease = session.acquire()) {
+                    MddbDatabase db = lease.database();
+                    List<MddbSearchResult> matches = db.search(needle, families, SEARCH_LIMIT);
+                    List<DisplayResult> enriched = new ArrayList<>(matches.size());
+                    for (MddbSearchResult match : matches) {
+                        enriched.add(new DisplayResult(match, db.schemaInfo(match)));
+                    }
+                    return enriched;
                 }
-                return enriched;
             }
 
             @Override
             protected void done() {
+                if (disposed || database != session || generation != searchGeneration) {
+                    return;
+                }
                 try {
                     List<DisplayResult> rows = get();
                     displayedResults = List.copyOf(rows);
@@ -327,8 +350,8 @@ final class MtkMddbProvider extends ComponentProvider {
     }
 
     private void importSelectedType() {
-        MddbDatabase db = database;
-        if (db == null) {
+        DatabaseSession session = database;
+        if (session == null) {
             statusLabel.setText("Open an EDB first.");
             return;
         }
@@ -343,16 +366,23 @@ final class MtkMddbProvider extends ComponentProvider {
             statusLabel.setText("Selected result is no longer available; search again.");
             return;
         }
-        plugin.importDataType(db, rows.get(modelRow).match());
+        plugin.importDataType(session, rows.get(modelRow).match());
     }
 
     void disposeProvider() {
-        MddbDatabase db = database;
+        disposed = true;
+        openGeneration++;
+        searchGeneration++;
+        DatabaseSession session = database;
         database = null;
         databasePath = null;
-        if (db != null) {
+        closeSession(session);
+    }
+
+    private void closeSession(DatabaseSession session) {
+        if (session != null) {
             try {
-                db.close();
+                session.close();
             } catch (IOException e) {
                 Msg.error(this, "Failed to close MediaTek MDDB", e);
             }

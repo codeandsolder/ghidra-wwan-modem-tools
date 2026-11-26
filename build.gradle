@@ -1,26 +1,13 @@
-plugins {
-    id 'base'
-}
+plugins { id 'base' }
 
-def installDir = providers.gradleProperty('ghidraInstallDir').orNull
-if (!installDir) {
-    throw new GradleException('Specify -PghidraInstallDir=/path/to/ghidra')
-}
-def ghidraBuild = file(installDir + '/support/buildExtension.gradle').canonicalFile
-if (!ghidraBuild.isFile()) {
-    throw new GradleException('Not a Ghidra distribution: ' + ghidraBuild.parentFile.parentFile)
-}
+def extensions = subprojects.findAll { it.name in ['VnaolteFirmware', 'mtk-mddb-tools'] }
 
-subprojects {
-    apply from: ghidraBuild
-
-    repositories { mavenCentral() }
-    dependencies {
-        testImplementation platform('org.junit:junit-bom:6.1.3')
-        testImplementation 'org.junit.jupiter:junit-jupiter'
-        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+configure(extensions) {
+    def ghidraBuild = file(providers.gradleProperty('ghidraInstallDir').get() + '/support/buildExtension.gradle').canonicalFile
+    if (!ghidraBuild.isFile()) {
+        throw new GradleException('Not a Ghidra distribution: ' + ghidraBuild.parentFile.parentFile)
     }
-    tasks.named('test', Test) { useJUnitPlatform() }
+    apply from: ghidraBuild
     tasks.register('compileGhidraScripts', JavaCompile) {
         source = fileTree('ghidra_scripts') { include '**/*.java' }
         classpath = sourceSets.main.compileClasspath + sourceSets.main.output
@@ -30,14 +17,38 @@ subprojects {
     tasks.named('check') { dependsOn 'compileGhidraScripts' }
     tasks.named('buildExtension', Zip) {
         dependsOn 'check'
-        preserveFileTimestamps = true
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
     }
 }
 
-tasks.named('check') { dependsOn ':VnaolteFirmware:check', ':mtk-mddb-tools:check' }
+subprojects {
+    repositories { mavenCentral() }
+    plugins.withType(JavaPlugin) {
+        java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+        dependencies {
+            testImplementation platform('org.junit:junit-bom:6.1.3')
+            testImplementation 'org.junit.jupiter:junit-jupiter'
+            testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.compilerArgs += ['-Xlint:all', '-Werror']
+        }
+        tasks.withType(Test).configureEach {
+            useJUnitPlatform()
+            jvmArgs '--enable-native-access=ALL-UNNAMED'
+        }
+    }
+}
+
+tasks.named('check') { dependsOn subprojects.collect { it.path + ':check' } }
 tasks.register('packageExtensions') {
     group = 'build'
-    description = 'Test and package both independent Ghidra extensions'
-    dependsOn ':VnaolteFirmware:packageExtension', ':mtk-mddb-tools:packageExtension'
+    if (extensions.isEmpty()) {
+        doLast { throw new GradleException('Specify -PghidraInstallDir=/path/to/ghidra') }
+    } else {
+        dependsOn extensions.collect { it.path + ':packageExtension' }
+    }
 }
-defaultTasks 'packageExtensions'
+defaultTasks 'check'

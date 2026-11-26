@@ -1,4 +1,4 @@
-package mtk_mddb.ghidra;
+package mtk_mddb.core;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -132,55 +132,51 @@ public final class MddbDatabase implements AutoCloseable {
         return schema.describeSpMatch(result.key(), result.offset());
     }
 
-    MddbSchema.ResolvedType resolvedType(MddbSearchResult result) throws RocksDBException {
+    public MddbSchema.ResolvedType resolvedType(MddbSearchResult result) throws RocksDBException {
         if (schema == null || !"sp".equals(result.columnFamily()) || !VALUE_FIELD.equals(result.field())) {
             return null;
         }
         return schema.resolveTypeForSpMatch(result.key(), result.offset());
     }
 
-    MddbSchema.ResolvedType resolvedTypeByName(String name) throws RocksDBException {
+    public MddbSchema.ResolvedType resolvedTypeByName(String name) throws RocksDBException {
         return schema == null ? null : schema.resolveTypeByName(name);
     }
 
-    MddbSchema.EnumDefinition resolvedEnumByName(String name) throws RocksDBException {
+    public MddbSchema.EnumDefinition resolvedEnumByName(String name) throws RocksDBException {
         return schema == null ? null : schema.resolveEnumByName(name);
     }
 
-    List<MddbSchema.EnumDefinition> enumDefinitions(MddbSearchResult result) throws RocksDBException {
+    public List<MddbSchema.EnumDefinition> enumDefinitions(MddbSearchResult result) throws RocksDBException {
         if (schema == null || !"sp".equals(result.columnFamily()) || !VALUE_FIELD.equals(result.field())) {
             return List.of();
         }
         return schema.enumDefinitionsForSpMatch(result.key(), result.offset());
     }
 
-    public List<MddbSearchResult> search(String needleText, String columnFamily, int limit) throws RocksDBException {
+    public List<MddbSearchResult> search(String needleText, List<String> columnFamilies, int limit) throws RocksDBException {
         byte[] needle = needleText.getBytes(StandardCharsets.UTF_8);
-        if (needle.length == 0) {
-            return List.of();
+        if (needle.length == 0 || limit < 1) {
+            throw new IllegalArgumentException("Search requires nonempty text and a positive limit");
         }
         List<MddbSearchResult> out = new ArrayList<>();
-        Iterable<Map.Entry<String, ColumnFamilyHandle>> selected;
-        if (columnFamily == null || "All".equals(columnFamily)) {
-            selected = handles.entrySet();
-        } else {
-            ColumnFamilyHandle handle = handles.get(columnFamily);
-            if (handle == null) {
-                throw new IllegalArgumentException("Unknown column family: " + columnFamily);
+        List<String> selected = columnFamilies.isEmpty() ? columnFamilies() : List.copyOf(new LinkedHashSet<>(columnFamilies));
+        for (String family : selected) {
+            if (!handles.containsKey(family)) {
+                throw new IllegalArgumentException("Unknown column family: " + family);
             }
-            selected = List.of(Map.entry(columnFamily, handle));
         }
 
-        for (Map.Entry<String, ColumnFamilyHandle> entry : selected) {
-            try (RocksIterator it = db.newIterator(entry.getValue())) {
+        for (String family : selected) {
+            try (RocksIterator it = db.newIterator(handles.get(family))) {
                 for (it.seekToFirst(); it.isValid(); it.next()) {
                     byte[] key = it.key();
                     byte[] value = it.value();
-                    collectMatches(out, entry.getKey(), "key", key, key, needle, limit);
+                    collectMatches(out, family, "key", key, key, needle, limit);
                     if (out.size() >= limit) {
                         return out;
                     }
-                    collectMatches(out, entry.getKey(), VALUE_FIELD, key, value, needle, limit);
+                    collectMatches(out, family, VALUE_FIELD, key, value, needle, limit);
                     if (out.size() >= limit) {
                         return out;
                     }
@@ -389,15 +385,7 @@ public final class MddbDatabase implements AutoCloseable {
     }
 
     private static int compareUnsigned(byte[] left, byte[] right) {
-        int count = Math.min(left.length, right.length);
-        for (int i = 0; i < count; i++) {
-            int a = Byte.toUnsignedInt(left[i]);
-            int b = Byte.toUnsignedInt(right[i]);
-            if (a != b) {
-                return Integer.compare(a, b);
-            }
-        }
-        return Integer.compare(left.length, right.length);
+        return Arrays.compareUnsigned(left, right);
     }
 
     private static boolean isPrintable(byte[] data, int start, int end) {
@@ -418,15 +406,15 @@ public final class MddbDatabase implements AutoCloseable {
             if (hit < 0) {
                 return;
             }
-            out.add(new MddbSearchResult(cf, field, key.clone(), hit, data.clone()));
+            out.add(new MddbSearchResult(cf, field, key, hit, data));
             from = hit + 1;
         }
     }
 
-    static String renderContext(MddbSearchResult result, int context, int needleLength) {
+    public static String renderContext(MddbSearchResult result, int context, int needleLength) {
         byte[] data = result.value();
         int start = Math.max(0, result.offset() - context);
-        int end = Math.min(data.length, result.offset() + needleLength + context);
+        int end = (int) Math.min(data.length, (long) result.offset() + needleLength + context);
         StringBuilder out = new StringBuilder((end - start) * 2);
         for (int i = start; i < end; i++) {
             int value = Byte.toUnsignedInt(data[i]);

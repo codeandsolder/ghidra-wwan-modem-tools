@@ -1,5 +1,7 @@
 package mtk_mddb.ghidra;
 
+import mtk_mddb.core.MddbDatabase;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
