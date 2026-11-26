@@ -11,6 +11,7 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
@@ -79,7 +80,7 @@ public class VerifyCweFiles extends GhidraScript {
                 throw new IOException("Wide YAFFS filesystem not recognized: " + file.getPath());
             }
             GFileSystem fs = nested.getFilesystem();
-            ArrayDeque<GFile> pending = new ArrayDeque<>(fs.getListing(null));
+            Deque<GFile> pending = new ArrayDeque<>(fs.getListing(null));
             Map<String, String> files = new TreeMap<>();
             int failures = 0;
             while (!pending.isEmpty()) {
