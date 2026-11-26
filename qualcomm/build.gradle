@@ -1,4 +1,6 @@
-def extensionArchive = tasks.named('buildExtension', Zip)
+def extensionArchive = tasks.named('buildExtension', Zip) {
+    archiveBaseName.set("VnaolteFirmware-${rootProject.version}-ghidra-${project.ext.ghidra_version}")
+}
 tasks.register('packageExtension', Exec) {
     group = 'build'
     description = 'Build and verify the Qualcomm extension archive'

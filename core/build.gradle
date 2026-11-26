@@ -10,8 +10,21 @@ if (!(selectedPlatform in ['linux64', 'win64', 'osx'])) {
 }
 ext.rocksPlatform = selectedPlatform
 
+dependencyLocking { lockAllConfigurations() }
+
+// Include all native classifiers in dependency verification.
+configurations {
+    allNativeRuntimes {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
 dependencies {
-    api "org.rocksdb:rocksdbjni:11.1.1:${selectedPlatform}"
+    def rocksdb = api("org.rocksdb:rocksdbjni:11.1.1:${selectedPlatform}")
+    for (platform in ['linux64', 'win64', 'osx']) {
+        allNativeRuntimes "org.rocksdb:rocksdbjni:${rocksdb.version}:${platform}"
+    }
     implementation 'org.tukaani:xz:1.10'
 }
 tasks.named('jar') { archiveBaseName = 'mtk-mddb-core' }

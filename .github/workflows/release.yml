@@ -25,15 +25,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon check :cli:distZip -ProcksdbPlatform=linux64
-          ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform=linux64 packageExtensions
-          for platform in win64 osx; do
-            ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform="$platform" :mtk-mddb-tools:packageExtension :cli:distZip -x :mtk-mddb-tools:test -x :core:test -x :cli:test
-          done
-          mkdir dist
-          cp qualcomm/dist/*.zip mediatek/dist/*.zip cli/build/distributions/*.zip dist/
-          (cd dist && sha256sum *.zip > SHA256SUMS)
+          version=$(sed -n 's/^releaseVersion=//p' gradle.properties)
+          test "$GITHUB_REF_NAME" = "v$version"
+          ci/package-release.sh "${{ steps.ghidra.outputs.install-dir }}" dist
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --notes-file CHANGELOG.md --title "$GITHUB_REF_NAME"

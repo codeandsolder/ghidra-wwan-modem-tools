@@ -35,3 +35,9 @@ The CLI and MediaTek extension use the same decoding and database implementation
 
 Both extension histories are preserved, including the original
 [mtk-mddb-tools](https://github.com/codeandsolder/mtk-mddb-tools) project.
+
+## License
+
+First-party code: [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE),
+at your option. See [third-party notices](THIRD-PARTY-NOTICES.md) and
+[release history](CHANGELOG.md).
