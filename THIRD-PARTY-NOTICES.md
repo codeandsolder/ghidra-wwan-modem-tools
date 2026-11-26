@@ -16,3 +16,10 @@ See LICENSE-APACHE for the Apache-2.0 terms.
 
 Ghidra (Apache-2.0) is a separate installation; its SDK is not redistributed
 in the extension packages. JUnit and associated test libraries are build-only.
+
+## RocksDB JNI bundled native components
+
+The RocksDB v11.1.1 Java static build Makefile pins zlib 1.3.1, bzip2 1.0.8,
+Snappy 1.2.2, LZ4 1.10.0 and Zstandard 1.5.7. Their upstream license texts
+are preserved under `licenses/`, along with RocksDB's LevelDB attribution
+and the XZ for Java 0BSD license.

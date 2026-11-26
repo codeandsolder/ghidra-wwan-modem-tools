@@ -28,6 +28,9 @@ for archive in "$output"/*.zip; do
     VnaolteFirmware-*) if rg -q 'rocksdbjni' <<<"$members"; then exit 1; fi ;;
     *-linux64*|*-win64*|*-osx*)
       platform=$(basename "$archive" | sed -E 's/.*-(linux64|win64|osx)(-.*)?\.zip/\1/')
+      for notice in "$PWD"/licenses/*.txt; do
+        rg -q "^[^/]+/licenses/$(basename "$notice")$" <<<"$members"
+      done
       rocks=$(rg '/lib/rocksdbjni-.*\.jar$' <<<"$members")
       [[ "$rocks" == *"-$platform.jar" && "$rocks" != *$'\n'* ]]
       ;;

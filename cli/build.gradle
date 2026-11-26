@@ -15,7 +15,10 @@ application {
 distributions {
     main {
         distributionBaseName = "mtk-mddb-cli-${project(':core').rocksPlatform}"
-        contents { from(rootProject.files('LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD-PARTY-NOTICES.md')) }
+        contents {
+            from(rootProject.files('LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD-PARTY-NOTICES.md'))
+            from(rootProject.file('licenses')) { into 'licenses' }
+        }
     }
 }
 tasks.named('distZip') { dependsOn 'check' }

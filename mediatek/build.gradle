@@ -39,6 +39,7 @@ for (pattern in [
 }
 
 def extensionArchive = tasks.named("buildExtension", Zip) {
+    from(rootProject.file('licenses')) { into "${project.name}/licenses" }
     archiveBaseName.set("mtk-mddb-tools-${rootProject.version}-ghidra-${project.ext.ghidra_version}-${rocksPlatform}")
 }
 
