@@ -1,6 +1,5 @@
 package mtk_mddb.ghidra;
 
-import mtk_mddb.core.MddbDatabase;
 import mtk_mddb.core.MddbSearchResult;
 
 import ghidra.util.exception.CancelledException;
@@ -124,7 +123,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
         new TaskLauncher(task, provider.getComponent());
     }
 
-    void importDataType(MddbDatabase database, MddbSearchResult result) {
+    void importDataType(DatabaseSession session, MddbSearchResult result) {
         Program program = currentProgram;
         if (program == null) {
             Msg.showWarn(this, provider.getComponent(), TITLE, OPEN_PROGRAM_FIRST);
@@ -133,9 +132,9 @@ public final class MtkMddbPlugin extends ProgramPlugin {
         Task task = new Task("Import MDDB data type", true, true, true) {
             @Override
             public void run(TaskMonitor monitor) {
-                try {
+                try (DatabaseSession.Lease lease = session.acquire()) {
                     MddbTypeImporter.ImportSummary summary =
-                        MddbTypeImporter.importSelection(program, database, result, monitor);
+                        MddbTypeImporter.importSelection(program, lease.database(), result, monitor);
                     if (summary.imported().isEmpty()) {
                         Msg.showInfo(this, provider.getComponent(), TITLE,
                             "The selected MDDB result does not resolve to a decoded type or enum.");
@@ -146,7 +145,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                     }
                 } catch (CancelledException e) {
                     monitor.cancel();
-                } catch (RocksDBException | IllegalArgumentException e) {
+                } catch (RocksDBException | java.io.IOException | IllegalArgumentException | IllegalStateException e) {
                     Msg.showError(this, provider.getComponent(), TITLE,
                         "Data-type import failed", e);
                 }

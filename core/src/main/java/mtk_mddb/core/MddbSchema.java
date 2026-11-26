@@ -154,7 +154,7 @@ public final class MddbSchema {
         return String.join("; ", summaries);
     }
 
-    ResolvedType resolveTypeForSpMatch(byte[] spKey, int offset) throws RocksDBException {
+    synchronized ResolvedType resolveTypeForSpMatch(byte[] spKey, int offset) throws RocksDBException {
         if (spKey.length != 4) {
             return null;
         }
@@ -165,13 +165,13 @@ public final class MddbSchema {
         return resolveType(stringRef(bucket, offset));
     }
 
-    ResolvedType resolveTypeByName(String name) throws RocksDBException {
+    synchronized ResolvedType resolveTypeByName(String name) throws RocksDBException {
         ensureTypeNameIndex();
         Integer ref = typeRefsByName.get(name);
         return ref == null ? null : resolveType(ref);
     }
 
-    Map<String, String> semanticEnumSignatures() throws RocksDBException {
+    synchronized Map<String, String> semanticEnumSignatures() throws RocksDBException {
         ensureTypeNameIndex();
         Map<String, String> out = new java.util.TreeMap<>();
         for (Map.Entry<String, Integer> entry : typeRefsByName.entrySet()) {
@@ -243,7 +243,7 @@ public final class MddbSchema {
         return new EnumDefinition(name, size, List.copyOf(members));
     }
 
-    EnumDefinition resolveEnumByName(String name) throws RocksDBException {
+    synchronized EnumDefinition resolveEnumByName(String name) throws RocksDBException {
         ensureTypeNameIndex();
         Integer ref = typeRefsByName.get(name);
         if (ref == null) {
@@ -270,7 +270,7 @@ public final class MddbSchema {
         return null;
     }
 
-    List<EnumDefinition> enumDefinitionsForSpMatch(byte[] spKey, int offset) throws RocksDBException {
+    synchronized List<EnumDefinition> enumDefinitionsForSpMatch(byte[] spKey, int offset) throws RocksDBException {
         if (spKey.length != 4) {
             return List.of();
         }

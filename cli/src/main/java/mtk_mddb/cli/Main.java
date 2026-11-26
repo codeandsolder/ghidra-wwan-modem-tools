@@ -61,7 +61,8 @@ public final class Main {
         Path input = Path.of(args[1]);
         Path output = null;
         boolean keepDataI = false;
-        for (int i = 2; i < args.length; i++) {
+        int i = 2;
+        while (i < args.length) {
             switch (args[i]) {
                 case "-o", "--output" -> {
                     if (output != null) {
@@ -73,6 +74,7 @@ public final class Main {
                 case "--keep-datai" -> keepDataI = true;
                 default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
             }
+            i++;
         }
         if (output == null) {
             throw new IllegalArgumentException("Missing -o output directory");
@@ -98,14 +100,15 @@ public final class Main {
         List<String> families = new ArrayList<>();
         int limit = 50;
         int context = 96;
-        for (int i = 3; i < args.length; i++) {
+        int i = 3;
+        while (i < args.length) {
             switch (args[i]) {
                 case "--cf" -> families.add(value(args, i));
                 case "--limit" -> limit = Integer.parseInt(value(args, i));
                 case "--context" -> context = Integer.parseInt(value(args, i));
                 default -> throw new IllegalArgumentException("Unknown option: " + args[i]);
             }
-            i++;
+            i += 2;
         }
         if (limit <= 0 || context < 0) {
             throw new IllegalArgumentException("--limit must be positive and --context nonnegative");
