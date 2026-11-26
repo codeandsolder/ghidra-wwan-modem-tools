@@ -143,7 +143,7 @@ final class MddbSchema {
             return "";
         }
         int ref = stringRef(bucket, offset);
-        LinkedHashSet<String> summaries = new LinkedHashSet<>();
+        Set<String> summaries = new LinkedHashSet<>();
         for (EnumMember member : findEnumMembers(ref)) {
             summaries.add(member.summary());
         }
@@ -185,10 +185,10 @@ final class MddbSchema {
                 return byValue != 0 ? byValue : left.name().compareTo(right.name());
             });
             StringBuilder signature = new StringBuilder();
-            signature.append(definition.size()).append(":");
+            signature.append(definition.size()).append(':');
             for (EnumValue value : values) {
                 signature.append(Long.toUnsignedString(value.value(), 16))
-                    .append("=").append(value.name()).append(";");
+                    .append('=').append(value.name()).append(';');
             }
             out.put(entry.getKey(), signature.toString());
         }
@@ -280,7 +280,7 @@ final class MddbSchema {
         }
         int ref = stringRef(bucket, offset);
         ensureEnumIndex();
-        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        Set<String> seen = new LinkedHashSet<>();
         List<EnumDefinition> out = new ArrayList<>();
         for (EnumMemberBase base : enumMembersByStringRef.getOrDefault(ref, List.of())) {
             String keyHex = HexFormat.of().formatHex(base.enumRecordKey());
@@ -477,9 +477,11 @@ final class MddbSchema {
         List<StructField> fields = new ArrayList<>();
         Set<String> seenFields = new LinkedHashSet<>();
 
-        for (int at = STRUCT_HEADER_SIZE; at + FIELD_DESCRIPTOR_SIZE <= value.length; at++) {
+        int at = STRUCT_HEADER_SIZE;
+        while (at <= value.length - FIELD_DESCRIPTOR_SIZE) {
             long descriptorKind = Integer.toUnsignedLong(u32(value, at + 1));
             if ((descriptorKind & 0xff000000L) != 0x10000000L) {
+                at++;
                 continue;
             }
             long fieldOffset = Integer.toUnsignedLong(u32(value, at + 13));
@@ -488,9 +490,11 @@ final class MddbSchema {
             String typeName = decodeStringRef(typeRef);
             String fieldName = decodeStringRef(nameRef);
             if (!looksIdentifier(typeName) || !looksIdentifier(fieldName)) {
+                at++;
                 continue;
             }
             if (fieldOffset > 0x1000000L) {
+                at++;
                 continue;
             }
             long arrayCount = 0;
@@ -505,7 +509,7 @@ final class MddbSchema {
             if (seenFields.add(identity)) {
                 fields.add(new StructField(fieldOffset, typeName, fieldName, arrayCount));
             }
-            at += FIELD_DESCRIPTOR_SIZE - 1;
+            at += FIELD_DESCRIPTOR_SIZE;
         }
         return new StructLayout(kind, size, alignment, List.copyOf(fields));
     }
@@ -556,7 +560,7 @@ final class MddbSchema {
         if (enumNameCache.containsKey(enumKeyHex)) {
             return enumNameCache.get(enumKeyHex);
         }
-        LinkedHashSet<String> names = new LinkedHashSet<>();
+        Set<String> names = new LinkedHashSet<>();
         try (RocksIterator typeIt = db.newIterator(types)) {
             for (typeIt.seekToFirst(); typeIt.isValid(); typeIt.next()) {
                 byte[] typeKey = typeIt.key();
@@ -578,7 +582,7 @@ final class MddbSchema {
         return result;
     }
 
-    private void findNamesFollowingTypeKey(byte[] typeKey, LinkedHashSet<String> names)
+    private void findNamesFollowingTypeKey(byte[] typeKey, Set<String> names)
             throws RocksDBException {
         try (RocksIterator structIt = db.newIterator(structs)) {
             for (structIt.seekToFirst(); structIt.isValid(); structIt.next()) {

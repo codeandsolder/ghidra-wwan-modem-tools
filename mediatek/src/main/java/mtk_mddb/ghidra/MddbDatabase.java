@@ -22,6 +22,7 @@ import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 
 public final class MddbDatabase implements AutoCloseable {
+    private static final String VALUE_FIELD = "value";
     public record ColumnFamilyDiff(long leftRecords, long rightRecords, long commonKeys,
             long identicalValues, long changedValues, long onlyLeft, long onlyRight) {}
 
@@ -67,6 +68,11 @@ public final class MddbDatabase implements AutoCloseable {
 
     public static MddbDatabase open(Path source) throws IOException, RocksDBException {
         EdbWorkspace workspace = EdbWorkspace.open(source);
+        List<ColumnFamilyOptions> cfOptions = new ArrayList<>();
+        List<ColumnFamilyHandle> openedHandles = new ArrayList<>();
+        DBOptions dbOptions = null;
+        RocksDB db = null;
+        boolean transferred = false;
         try {
             Path root = workspace.rocksDbRoot();
             List<byte[]> names;
@@ -78,23 +84,36 @@ public final class MddbDatabase implements AutoCloseable {
             }
 
             List<ColumnFamilyDescriptor> descriptors = new ArrayList<>();
-            List<ColumnFamilyOptions> cfOptions = new ArrayList<>();
             for (byte[] name : names) {
                 ColumnFamilyOptions options = new ColumnFamilyOptions();
                 cfOptions.add(options);
                 descriptors.add(new ColumnFamilyDescriptor(name, options));
             }
-            List<ColumnFamilyHandle> openedHandles = new ArrayList<>();
-            DBOptions dbOptions = new DBOptions().setCreateIfMissing(false);
-            RocksDB db = RocksDB.openReadOnly(dbOptions, root.toString(), descriptors, openedHandles);
+            dbOptions = new DBOptions().setCreateIfMissing(false);
+            db = RocksDB.openReadOnly(dbOptions, root.toString(), descriptors, openedHandles);
             Map<String, ColumnFamilyHandle> byName = new LinkedHashMap<>();
             for (int i = 0; i < names.size(); i++) {
                 byName.put(new String(names.get(i), StandardCharsets.UTF_8), openedHandles.get(i));
             }
-            return new MddbDatabase(workspace, dbOptions, db, cfOptions, byName);
-        } catch (IOException | RocksDBException | RuntimeException e) {
-            workspace.close();
-            throw e;
+            MddbDatabase database = new MddbDatabase(workspace, dbOptions, db, cfOptions, byName);
+            transferred = true;
+            return database;
+        } finally {
+            if (!transferred) {
+                for (ColumnFamilyHandle handle : openedHandles) {
+                    handle.close();
+                }
+                if (db != null) {
+                    db.close();
+                }
+                for (ColumnFamilyOptions options : cfOptions) {
+                    options.close();
+                }
+                if (dbOptions != null) {
+                    dbOptions.close();
+                }
+                workspace.close();
+            }
         }
     }
 
@@ -107,14 +126,14 @@ public final class MddbDatabase implements AutoCloseable {
     }
 
     public String schemaInfo(MddbSearchResult result) throws RocksDBException {
-        if (schema == null || !result.columnFamily().equals("sp") || !result.field().equals("value")) {
+        if (schema == null || !"sp".equals(result.columnFamily()) || !VALUE_FIELD.equals(result.field())) {
             return "";
         }
         return schema.describeSpMatch(result.key(), result.offset());
     }
 
     MddbSchema.ResolvedType resolvedType(MddbSearchResult result) throws RocksDBException {
-        if (schema == null || !result.columnFamily().equals("sp") || !result.field().equals("value")) {
+        if (schema == null || !"sp".equals(result.columnFamily()) || !VALUE_FIELD.equals(result.field())) {
             return null;
         }
         return schema.resolveTypeForSpMatch(result.key(), result.offset());
@@ -129,7 +148,7 @@ public final class MddbDatabase implements AutoCloseable {
     }
 
     List<MddbSchema.EnumDefinition> enumDefinitions(MddbSearchResult result) throws RocksDBException {
-        if (schema == null || !result.columnFamily().equals("sp") || !result.field().equals("value")) {
+        if (schema == null || !"sp".equals(result.columnFamily()) || !VALUE_FIELD.equals(result.field())) {
             return List.of();
         }
         return schema.enumDefinitionsForSpMatch(result.key(), result.offset());
@@ -142,7 +161,7 @@ public final class MddbDatabase implements AutoCloseable {
         }
         List<MddbSearchResult> out = new ArrayList<>();
         Iterable<Map.Entry<String, ColumnFamilyHandle>> selected;
-        if (columnFamily == null || columnFamily.equals("All")) {
+        if (columnFamily == null || "All".equals(columnFamily)) {
             selected = handles.entrySet();
         } else {
             ColumnFamilyHandle handle = handles.get(columnFamily);
@@ -161,7 +180,7 @@ public final class MddbDatabase implements AutoCloseable {
                     if (out.size() >= limit) {
                         return out;
                     }
-                    collectMatches(out, entry.getKey(), "value", key, value, needle, limit);
+                    collectMatches(out, entry.getKey(), VALUE_FIELD, key, value, needle, limit);
                     if (out.size() >= limit) {
                         return out;
                     }
@@ -179,7 +198,7 @@ public final class MddbDatabase implements AutoCloseable {
     public SemanticEnumDiff compareSemanticEnums(MddbDatabase other) throws RocksDBException {
         Map<String, String> left = semanticEnumSignatures();
         Map<String, String> right = other.semanticEnumSignatures();
-        LinkedHashSet<String> names = new LinkedHashSet<>(left.keySet());
+        Set<String> names = new LinkedHashSet<>(left.keySet());
         names.addAll(right.keySet());
         int common = 0;
         int identical = 0;
@@ -238,7 +257,7 @@ public final class MddbDatabase implements AutoCloseable {
     private static EnumSignature parseEnumSignature(String signature) {
         int separator = signature.indexOf(':');
         int size = Integer.parseInt(signature.substring(0, separator));
-        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        Map<String, String> values = new LinkedHashMap<>();
         for (String member : signature.substring(separator + 1).split(";")) {
             if (member.isEmpty()) {
                 continue;
@@ -258,7 +277,7 @@ public final class MddbDatabase implements AutoCloseable {
         if (handle == null) {
             return Set.of();
         }
-        LinkedHashSet<String> out = new LinkedHashSet<>();
+        Set<String> out = new LinkedHashSet<>();
         try (RocksIterator it = db.newIterator(handle)) {
             for (it.seekToFirst(); it.isValid(); it.next()) {
                 byte[] value = it.value();
@@ -284,9 +303,9 @@ public final class MddbDatabase implements AutoCloseable {
      * are stable. The result is useful as a structural baseline before semantic schema comparison.
      */
     public Map<String, ColumnFamilyDiff> compareRaw(MddbDatabase other) throws RocksDBException {
-        LinkedHashSet<String> names = new LinkedHashSet<>(handles.keySet());
+        Set<String> names = new LinkedHashSet<>(handles.keySet());
         names.addAll(other.handles.keySet());
-        LinkedHashMap<String, ColumnFamilyDiff> out = new LinkedHashMap<>();
+        Map<String, ColumnFamilyDiff> out = new LinkedHashMap<>();
         for (String name : names) {
             ColumnFamilyHandle left = handles.get(name);
             ColumnFamilyHandle right = other.handles.get(name);

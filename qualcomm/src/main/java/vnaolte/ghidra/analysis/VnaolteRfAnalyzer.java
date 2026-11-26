@@ -164,7 +164,7 @@ public final class VnaolteRfAnalyzer extends AbstractAnalyzer {
                 "VNAOLTE/RF", summary);
 
             String marker = "[VNAOLTE RF triage]";
-            StringBuilder evidence = new StringBuilder(marker).append(" " )
+            StringBuilder evidence = new StringBuilder(marker).append(' ')
                 .append(summary);
             for (String item : hit.evidence) {
                 evidence.append("\n  ").append(item);

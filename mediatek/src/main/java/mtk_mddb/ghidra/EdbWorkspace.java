@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.tukaani.xz.LZMAInputStream;
 
@@ -40,9 +41,9 @@ final class EdbWorkspace implements AutoCloseable {
         byte[] dataA = null;
         for (Section section : sections) {
             byte[] decoded = decompress(blob, section);
-            if (section.name().equals("DATAI")) {
+            if ("DATAI".equals(section.name())) {
                 dataI = decoded;
-            } else if (section.name().equals("DATAA")) {
+            } else if ("DATAA".equals(section.name())) {
                 dataA = decoded;
             }
         }
@@ -51,8 +52,9 @@ final class EdbWorkspace implements AutoCloseable {
         }
 
         Path temp = Files.createTempDirectory("mtk-mddb-ghidra-");
+        boolean transferred = false;
         try {
-            java.util.HashSet<Path> outputs = new java.util.HashSet<>();
+            Set<Path> outputs = new java.util.HashSet<>();
             for (PackedFile file : parseDataI(dataI)) {
                 Path out = safeResolve(temp, file.name());
                 if (!outputs.add(out)) {
@@ -62,10 +64,13 @@ final class EdbWorkspace implements AutoCloseable {
                 Files.write(out, file.payload());
             }
             makeRocksDbCompatible(temp);
-            return new EdbWorkspace(temp, temp, dataA);
-        } catch (IOException | RuntimeException e) {
-            deleteTree(temp);
-            throw e;
+            EdbWorkspace workspace = new EdbWorkspace(temp, temp, dataA);
+            transferred = true;
+            return workspace;
+        } finally {
+            if (!transferred) {
+                deleteTree(temp);
+            }
         }
     }
 
@@ -75,6 +80,7 @@ final class EdbWorkspace implements AutoCloseable {
             throw new IOException("Directory does not contain an extracted RocksDB: " + rocks);
         }
         Path temp = Files.createTempDirectory("mtk-mddb-ghidra-view-");
+        boolean transferred = false;
         try {
             try (var entries = Files.list(rocks)) {
                 for (Path entry : entries.toList()) {
@@ -98,10 +104,13 @@ final class EdbWorkspace implements AutoCloseable {
                 ? source.resolve("DATAA.bin")
                 : source.getParent() == null ? source.resolve("DATAA.bin") : source.getParent().resolve("DATAA.bin");
             byte[] dataA = Files.isRegularFile(dataAPath) ? Files.readAllBytes(dataAPath) : new byte[0];
-            return new EdbWorkspace(temp, temp, dataA);
-        } catch (IOException | RuntimeException e) {
-            deleteTree(temp);
-            throw e;
+            EdbWorkspace workspace = new EdbWorkspace(temp, temp, dataA);
+            transferred = true;
+            return workspace;
+        } finally {
+            if (!transferred) {
+                deleteTree(temp);
+            }
         }
     }
 

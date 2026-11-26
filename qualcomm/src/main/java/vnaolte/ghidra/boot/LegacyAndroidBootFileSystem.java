@@ -1,6 +1,8 @@
 package vnaolte.ghidra.boot;
 
-import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.*;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.COMMENT_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.NAME_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SIZE_ATTR;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +47,7 @@ public final class LegacyAndroidBootFileSystem implements GFileSystem {
 
     void mount(TaskMonitor monitor) throws IOException, CancelledException {
         monitor.setMessage("Parsing legacy Android boot image...");
-        byte[] h = provider.readBytes(0, (int) Math.min(provider.length(), 1632));
+        byte[] h = provider.readBytes(0, Math.min(provider.length(), 1632));
         if (h.length < 64) {
             throw new IOException("Truncated Android boot header");
         }
@@ -99,13 +101,15 @@ public final class LegacyAndroidBootFileSystem implements GFileSystem {
             "page_size=0x" + Long.toHexString(pageSize) + "\n" +
             "cmdline=" + cmdline.trim() + "\n";
         byte[] data = info.getBytes(StandardCharsets.UTF_8);
-        fsIndex.storeFile("boot-header.txt", nextIndex++, false, data.length,
+        fsIndex.storeFile("boot-header.txt", nextIndex, false, data.length,
             new Entry("boot-header.txt", 0, data.length, 0, "metadata", data));
+        nextIndex++;
     }
 
     private void addRegion(String name, long offset, long size, long loadAddress, String kind) throws IOException {
-        fsIndex.storeFile(name, nextIndex++, false, size,
+        fsIndex.storeFile(name, nextIndex, false, size,
             new Entry(name, offset, size, loadAddress, kind, null));
+        nextIndex++;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package mtk_mddb.ghidra;
 
+import ghidra.util.exception.CancelledException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -8,7 +9,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.rocksdb.RocksDBException;
 
 import ghidra.program.model.data.ArrayDataType;
@@ -57,18 +57,18 @@ public final class MddbTypeImporter {
 
     /** Imports the decoded type and/or enum associated with one MDDB search result. */
     public static ImportSummary importSelection(Program program, MddbDatabase database,
-            MddbSearchResult result, TaskMonitor monitor) throws Exception {
+            MddbSearchResult result, TaskMonitor monitor) throws RocksDBException, CancelledException {
         return new MddbTypeImporter(program, database, monitor).run(result);
     }
 
-    private ImportSummary run(MddbSearchResult result) throws Exception {
+    private ImportSummary run(MddbSearchResult result) throws RocksDBException, CancelledException {
         MddbSchema.ResolvedType type = database.resolvedType(result);
         List<MddbSchema.EnumDefinition> enums = database.enumDefinitions(result);
         if (type == null && enums.isEmpty()) {
             return new ImportSummary(List.of());
         }
 
-        LinkedHashSet<String> names = new LinkedHashSet<>();
+        Set<String> names = new LinkedHashSet<>();
         int tx = program.startTransaction("Import MediaTek MDDB data types");
         boolean commit = false;
         try {
@@ -90,7 +90,7 @@ public final class MddbTypeImporter {
         return new ImportSummary(List.copyOf(names));
     }
 
-    private DataType importResolvedType(MddbSchema.ResolvedType definition) throws Exception {
+    private DataType importResolvedType(MddbSchema.ResolvedType definition) throws RocksDBException, CancelledException {
         DataType cached = importedByName.get(definition.name());
         if (cached != null) {
             return cached;
@@ -101,7 +101,7 @@ public final class MddbTypeImporter {
         try {
             monitor.checkCancelled();
             int size = checkedSize(definition.size(), definition.name());
-            DataType composite = definition.kind().equals("union")
+            DataType composite = "union".equals(definition.kind())
                 ? buildUnion(definition)
                 : buildStructure(definition, size);
             DataType resolved = manager.addDataType(composite, DataTypeConflictHandler.REPLACE_HANDLER);
@@ -112,7 +112,7 @@ public final class MddbTypeImporter {
         }
     }
 
-    private DataType buildStructure(MddbSchema.ResolvedType definition, int size) throws Exception {
+    private DataType buildStructure(MddbSchema.ResolvedType definition, int size) throws RocksDBException, CancelledException {
         StructureDataType structure = new StructureDataType(CATEGORY, definition.name(), size, manager);
         List<MddbSchema.StructField> fields = sortedFields(definition.fields());
         for (int i = 0; i < fields.size(); i++) {
@@ -134,7 +134,7 @@ public final class MddbTypeImporter {
         return structure;
     }
 
-    private DataType buildUnion(MddbSchema.ResolvedType definition) throws Exception {
+    private DataType buildUnion(MddbSchema.ResolvedType definition) throws RocksDBException, CancelledException {
         UnionDataType union = new UnionDataType(CATEGORY, definition.name(), manager);
         int size = checkedSize(definition.size(), definition.name());
         for (MddbSchema.StructField field : sortedFields(definition.fields())) {
@@ -149,7 +149,7 @@ public final class MddbTypeImporter {
         return union;
     }
 
-    private DataType resolveFieldType(MddbSchema.StructField field, int span) throws Exception {
+    private DataType resolveFieldType(MddbSchema.StructField field, int span) throws RocksDBException, CancelledException {
         DataType base = primitive(field.typeName());
         if (base == null) {
             MddbSchema.ResolvedType nested = database.resolvedTypeByName(field.typeName());

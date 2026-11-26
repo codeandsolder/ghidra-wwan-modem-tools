@@ -18,8 +18,7 @@ public class CompareMtkBuilds extends GhidraScript {
         }
 
         String[] args = getScriptArgs();
-        Program target = null;
-        boolean releaseTarget = false;
+        Program target;
         Path sourceEdb;
         Path targetEdb;
         Path output;
@@ -37,22 +36,22 @@ public class CompareMtkBuilds extends GhidraScript {
                 throw new IllegalArgumentException("Target is not a Ghidra program: " + args[0]);
             }
             target = program;
-            releaseTarget = true;
+
             sourceEdb = Path.of(args[1]);
             targetEdb = Path.of(args[2]);
             output = Path.of(args[3]);
             withBsim = false;
             withVersionTracking = false;
             for (int i = 4; i < args.length; i++) {
-                withBsim |= args[i].equals("--bsim");
-                withVersionTracking |= args[i].equals("--vt");
+                withBsim |= "--bsim".equals(args[i]);
+                withVersionTracking |= "--vt".equals(args[i]);
             }
         } else {
             target = askProgram("Select target MediaTek build");
             if (target == null) {
                 return;
             }
-            releaseTarget = true;
+
             File left = askFile("Select source MDDB EDB", "Open");
             File right = askFile("Select target MDDB EDB", "Open");
             File out = askFile("Choose comparison TSV", "Save");
@@ -69,7 +68,7 @@ public class CompareMtkBuilds extends GhidraScript {
             CompareMtkBuildsRunner.run(currentProgram, target, sourceEdb, targetEdb, output,
                 withBsim, withVersionTracking, monitor, this::println);
         } finally {
-            if (releaseTarget && target != null) {
+            if (target != null) {
                 target.release(this);
             }
         }

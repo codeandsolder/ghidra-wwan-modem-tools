@@ -38,8 +38,7 @@ final class QualcommZlibDebugOverlayAnalyzerTest {
     }
 
     private static byte[] rawDeflate(byte[] payload) {
-        Deflater deflater = new Deflater(6, true);
-        try {
+        try (Deflater deflater = new Deflater(6, true)) {
             deflater.setInput(payload);
             deflater.finish();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -49,9 +48,6 @@ final class QualcommZlibDebugOverlayAnalyzerTest {
                 out.write(buf, 0, n);
             }
             return out.toByteArray();
-        }
-        finally {
-            deflater.end();
         }
     }
 

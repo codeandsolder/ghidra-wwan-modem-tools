@@ -40,8 +40,8 @@ final class SierraCweHeader {
     }
 
     boolean isContainer() {
-        return type.equals("SPKG") || type.equals("BOOT") || type.equals("MODM") ||
-            type.equals("APPL");
+        return "SPKG".equals(type) || "BOOT".equals(type) || "MODM".equals(type) ||
+            "APPL".equals(type);
     }
 
     static boolean hasMagic(byte[] bytes) {
@@ -83,7 +83,7 @@ final class SierraCweHeader {
         return ((long) (b[off] & 0xff) << 24) |
             ((long) (b[off + 1] & 0xff) << 16) |
             ((long) (b[off + 2] & 0xff) << 8) |
-            (long) (b[off + 3] & 0xff);
+            (b[off + 3] & 0xff);
     }
 
     private static String ascii(byte[] b, int off, int len) {

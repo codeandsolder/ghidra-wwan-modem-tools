@@ -1,5 +1,6 @@
 package vnaolte.ghidra.q6zip;
 
+import ghidra.program.model.address.AddressOutOfBoundsException;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,7 +127,7 @@ public final class Q6ZipDecoder {
             }
             return false;
         }
-        catch (MemoryAccessException | RuntimeException e) {
+        catch (MemoryAccessException | AddressOutOfBoundsException e) {
             return false;
         }
     }
@@ -241,7 +242,7 @@ public final class Q6ZipDecoder {
         }
 
         // q6zip parameter inference should be overwhelming, not marginal.
-        if (exact < Math.max(8, (best.layout.pageCount * 9) / 10)) {
+        if (exact < Math.max(8, best.layout.pageCount * 9 / 10)) {
             throw new IOException(String.format(
                 "q6zip inference is weak: only %d/%d pages decode to 4096 bytes",
                 exact, best.layout.pageCount));
@@ -355,7 +356,7 @@ public final class Q6ZipDecoder {
             long deviation = 0;
             for (int sample = 0; sample < samples; sample++) {
                 monitor.checkCancelled();
-                int i = (int) (((long) sample * layout.pageCount) / samples);
+                int i = (int) ((long) sample * layout.pageCount / samples);
                 if (i >= layout.pageCount) {
                     i = layout.pageCount - 1;
                 }
@@ -551,20 +552,15 @@ public final class Q6ZipDecoder {
                     }
                 }
             }
-            catch (Exception ignored) {
+            catch (MemoryAccessException | AddressOutOfBoundsException ignored) {
                 // This occurrence is not a readable DLPager descriptor.
             }
-            try {
-                search = hit.next();
-            }
-            catch (Exception e) {
-                break;
-            }
+            search = hit.next();
         }
         return found;
     }
 
-    private static boolean hasMetadataHeader(int[] words) {
+    private static boolean hasMetadataHeader(int... words) {
         if (words.length < 3) {
             return false;
         }
@@ -612,16 +608,22 @@ public final class Q6ZipDecoder {
                 switch (op) {
                     case 0x304 -> { // 3 bits, 100: dict1
                         int ix = bits.get(ilog2(dict1.length));
-                        out[outCount++] = dict1[ix];
+                        out[outCount] = dict1[ix];
+                        outCount++;
                     }
                     case 0x405 -> { // 4 bits, 0101: dict2
                         int ix = bits.get(ilog2(dict2.length));
-                        out[outCount++] = dict2[ix];
+                        out[outCount] = dict2[ix];
+                        outCount++;
                     }
-                    case 0x303 -> out[outCount++] = bits.get(32); // literal
+                    case 0x303 -> { // literal
+                        out[outCount] = bits.get(32);
+                        outCount++;
+                    }
                     case 0x307 -> { // sequential
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = prev;
+                        out[outCount] = prev;
+                        outCount++;
                     }
                     case 0x71a -> { // mask 8 @16, or break
                         int m = bits.get(8);
@@ -632,69 +634,80 @@ public final class Q6ZipDecoder {
                         }
                         else {
                             int prev = previous(out, outCount, lastOut);
-                            out[outCount++] = (prev & ~(0xff << 16)) | (m << 16);
+                            out[outCount] = (prev & ~(0xff << 16)) | (m << 16);
+                            outCount++;
                         }
                     }
                     case 0x75a -> { // mask 8 @8
                         int m = bits.get(8);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~(0xff << 8)) | (m << 8);
+                        out[outCount] = (prev & ~(0xff << 8)) | (m << 8);
+                        outCount++;
                     }
                     case 0x306 -> { // mask 8 @0
                         int m = bits.get(8);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xff) | m;
+                        out[outCount] = (prev & ~0xff) | m;
+                        outCount++;
                     }
                     case 0x51d -> { // mask 12 @0
                         int m = bits.get(12);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xfff) | m;
+                        out[outCount] = (prev & ~0xfff) | m;
+                        outCount++;
                     }
                     case 0x60a -> { // mask 16 @0
                         int m = bits.get(16);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xffff) | m;
+                        out[outCount] = (prev & ~0xffff) | m;
+                        outCount++;
                     }
                     case 0x301 -> { // lookback
                         int lb = bits.get(lookbackBits);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = prev;
+                        out[outCount] = prev;
+                        outCount++;
                     }
                     case 0x62a -> { // lookback mask 8 @16
                         int lb = bits.get(lookbackBits);
                         int m = bits.get(8);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~(0xff << 16)) | (m << 16);
+                        out[outCount] = (prev & ~(0xff << 16)) | (m << 16);
+                        outCount++;
                     }
                     case 0x63a -> { // lookback mask 8 @8
                         int lb = bits.get(lookbackBits);
                         int m = bits.get(8);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~(0xff << 8)) | (m << 8);
+                        out[outCount] = (prev & ~(0xff << 8)) | (m << 8);
+                        outCount++;
                     }
                     case 0x300 -> { // lookback mask 8 @0
                         int lb = bits.get(lookbackBits);
                         int m = bits.get(8);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xff) | m;
+                        out[outCount] = (prev & ~0xff) | m;
+                        outCount++;
                     }
                     case 0x402 -> { // lookback mask 12 @0
                         int lb = bits.get(lookbackBits);
                         int m = bits.get(12);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xfff) | m;
+                        out[outCount] = (prev & ~0xfff) | m;
+                        outCount++;
                     }
                     case 0x50d -> { // lookback mask 16 @0
                         int lb = bits.get(lookbackBits);
                         int m = bits.get(16);
                         lastOut = lb - (1 << lookbackBits);
                         int prev = previous(out, outCount, lastOut);
-                        out[outCount++] = (prev & ~0xffff) | m;
+                        out[outCount] = (prev & ~0xffff) | m;
+                        outCount++;
                     }
                     default -> throw new IOException(String.format(
                         "unhandled q6zip opcode 0x%x", op));
@@ -746,7 +759,7 @@ public final class Q6ZipDecoder {
         private int bitPos;
 
         BitReader(int[] words, int skipWords) {
-            this.words = words;
+            this.words = words.clone();
             this.wordIndex = skipWords;
             this.bitPos = 0;
         }

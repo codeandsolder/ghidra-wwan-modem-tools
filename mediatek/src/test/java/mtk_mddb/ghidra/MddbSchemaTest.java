@@ -20,6 +20,12 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 
 class MddbSchemaTest {
+    private static final String ENUM_FAMILY = "enum";
+    private static final String TYPE_FAMILY = "type";
+    private static final String STRUCT_FAMILY = "struct";
+    private static final String TEST_REQ_ID = "TEST_REQ_ID";
+    private static final String TEST_ALIAS = "TEST_ALIAS";
+    private static final String TEST_PDU = "TEST_PDU";
     static {
         RocksDB.loadLibrary();
     }
@@ -32,9 +38,9 @@ class MddbSchemaTest {
         try (Options options = new Options().setCreateIfMissing(true);
              RocksDB db = RocksDB.open(options, tempDir.resolve("enum-db").toString());
              ColumnFamilyHandle sp = db.createColumnFamily(cf("sp"));
-             ColumnFamilyHandle enums = db.createColumnFamily(cf("enum"));
-             ColumnFamilyHandle types = db.createColumnFamily(cf("type"));
-             ColumnFamilyHandle structs = db.createColumnFamily(cf("struct"))) {
+             ColumnFamilyHandle enums = db.createColumnFamily(cf(ENUM_FAMILY));
+             ColumnFamilyHandle types = db.createColumnFamily(cf(TYPE_FAMILY));
+             ColumnFamilyHandle structs = db.createColumnFamily(cf(STRUCT_FAMILY))) {
 
             byte[] pool = "TEST_MEMBER\0TEST_ENUM\0".getBytes(StandardCharsets.UTF_8);
             db.put(sp, le32(1), pool);
@@ -69,21 +75,21 @@ class MddbSchemaTest {
         try (Options options = new Options().setCreateIfMissing(true);
              RocksDB db = RocksDB.open(options, tempDir.resolve("enum-35-db").toString());
              ColumnFamilyHandle sp = db.createColumnFamily(cf("sp"));
-             ColumnFamilyHandle enums = db.createColumnFamily(cf("enum"));
-             ColumnFamilyHandle types = db.createColumnFamily(cf("type"));
-             ColumnFamilyHandle structs = db.createColumnFamily(cf("struct"))) {
+             ColumnFamilyHandle enums = db.createColumnFamily(cf(ENUM_FAMILY));
+             ColumnFamilyHandle types = db.createColumnFamily(cf(TYPE_FAMILY));
+             ColumnFamilyHandle structs = db.createColumnFamily(cf(STRUCT_FAMILY))) {
 
             Map<String, Integer> offsets = new LinkedHashMap<>();
             ByteArrayOutputStream pool = new ByteArrayOutputStream();
             for (String value : new String[] {
-                    "TEST_REQ_ID", "TEST_CNF_ID", "TEST_OTHER_ID", "TEST_MESSAGE_ID"}) {
+                    TEST_REQ_ID, "TEST_CNF_ID", "TEST_OTHER_ID", "TEST_MESSAGE_ID"}) {
                 offsets.put(value, pool.size());
                 pool.writeBytes(value.getBytes(StandardCharsets.UTF_8));
                 pool.write(0);
             }
             db.put(sp, le32(4), pool.toByteArray());
 
-            int reqRef = packStringRef(4, offsets.get("TEST_REQ_ID"));
+            int reqRef = packStringRef(4, offsets.get(TEST_REQ_ID));
             int cnfRef = packStringRef(4, offsets.get("TEST_CNF_ID"));
             int otherRef = packStringRef(4, offsets.get("TEST_OTHER_ID"));
             int enumNameRef = packStringRef(4, offsets.get("TEST_MESSAGE_ID"));
@@ -106,11 +112,11 @@ class MddbSchemaTest {
 
             MddbSchema schema = new MddbSchema(db, sp, enums, types, structs);
             assertEquals("TEST_MESSAGE_ID = 0x43",
-                schema.describeSpMatch(le32(4), offsets.get("TEST_REQ_ID")));
+                schema.describeSpMatch(le32(4), offsets.get(TEST_REQ_ID)));
             MddbSchema.EnumDefinition definition = schema.resolveEnumByName("TEST_MESSAGE_ID");
             assertNotNull(definition);
             assertEquals(List.of(
-                new MddbSchema.EnumValue(0x43, "TEST_REQ_ID"),
+                new MddbSchema.EnumValue(0x43, TEST_REQ_ID),
                 new MddbSchema.EnumValue(0x44, "TEST_CNF_ID"),
                 new MddbSchema.EnumValue(0x45, "TEST_OTHER_ID")), definition.values());
         }
@@ -121,14 +127,14 @@ class MddbSchemaTest {
         try (Options options = new Options().setCreateIfMissing(true);
              RocksDB db = RocksDB.open(options, tempDir.resolve("struct-db").toString());
              ColumnFamilyHandle sp = db.createColumnFamily(cf("sp"));
-             ColumnFamilyHandle enums = db.createColumnFamily(cf("enum"));
-             ColumnFamilyHandle types = db.createColumnFamily(cf("type"));
-             ColumnFamilyHandle structs = db.createColumnFamily(cf("struct"))) {
+             ColumnFamilyHandle enums = db.createColumnFamily(cf(ENUM_FAMILY));
+             ColumnFamilyHandle types = db.createColumnFamily(cf(TYPE_FAMILY));
+             ColumnFamilyHandle structs = db.createColumnFamily(cf(STRUCT_FAMILY))) {
 
             Map<String, Integer> offsets = new LinkedHashMap<>();
             ByteArrayOutputStream pool = new ByteArrayOutputStream();
             for (String value : new String[] {
-                    "TEST_ALIAS", "TEST_PAYLOAD", "struct_test_payload",
+                    TEST_ALIAS, "TEST_PAYLOAD", "struct_test_payload",
                     "kal_uint16", "field_a", "field_b"}) {
                 offsets.put(value, pool.size());
                 pool.writeBytes(value.getBytes(StandardCharsets.UTF_8));
@@ -136,7 +142,7 @@ class MddbSchemaTest {
             }
             db.put(sp, le32(2), pool.toByteArray());
 
-            int aliasRef = packStringRef(2, offsets.get("TEST_ALIAS"));
+            int aliasRef = packStringRef(2, offsets.get(TEST_ALIAS));
             int payloadRef = packStringRef(2, offsets.get("TEST_PAYLOAD"));
             int structRef = packStringRef(2, offsets.get("struct_test_payload"));
             int uint16Ref = packStringRef(2, offsets.get("kal_uint16"));
@@ -156,10 +162,10 @@ class MddbSchemaTest {
             assertEquals(
                 "TEST_ALIAS -> TEST_PAYLOAD: struct size=4 align=2 { " +
                     "+0x0 kal_uint16 field_a; +0x2 kal_uint16 field_b }",
-                schema.describeSpMatch(le32(2), offsets.get("TEST_ALIAS")));
-            MddbSchema.ResolvedType type = schema.resolveTypeByName("TEST_ALIAS");
+                schema.describeSpMatch(le32(2), offsets.get(TEST_ALIAS)));
+            MddbSchema.ResolvedType type = schema.resolveTypeByName(TEST_ALIAS);
             assertNotNull(type);
-            assertEquals("TEST_ALIAS", type.name());
+            assertEquals(TEST_ALIAS, type.name());
             assertEquals(4, type.size());
             assertEquals(2, type.fields().size());
             assertEquals("field_b", type.fields().get(1).fieldName());
@@ -171,21 +177,21 @@ class MddbSchemaTest {
         try (Options options = new Options().setCreateIfMissing(true);
              RocksDB db = RocksDB.open(options, tempDir.resolve("array-db").toString());
              ColumnFamilyHandle sp = db.createColumnFamily(cf("sp"));
-             ColumnFamilyHandle enums = db.createColumnFamily(cf("enum"));
-             ColumnFamilyHandle types = db.createColumnFamily(cf("type"));
-             ColumnFamilyHandle structs = db.createColumnFamily(cf("struct"))) {
+             ColumnFamilyHandle enums = db.createColumnFamily(cf(ENUM_FAMILY));
+             ColumnFamilyHandle types = db.createColumnFamily(cf(TYPE_FAMILY));
+             ColumnFamilyHandle structs = db.createColumnFamily(cf(STRUCT_FAMILY))) {
 
             Map<String, Integer> offsets = new LinkedHashMap<>();
             ByteArrayOutputStream pool = new ByteArrayOutputStream();
             for (String value : new String[] {
-                    "TEST_PDU", "struct_test_pdu", "TEST_ELEMENT", "iq_dump_result"}) {
+                    TEST_PDU, "struct_test_pdu", "TEST_ELEMENT", "iq_dump_result"}) {
                 offsets.put(value, pool.size());
                 pool.writeBytes(value.getBytes(StandardCharsets.UTF_8));
                 pool.write(0);
             }
             db.put(sp, le32(3), pool.toByteArray());
 
-            int pduRef = packStringRef(3, offsets.get("TEST_PDU"));
+            int pduRef = packStringRef(3, offsets.get(TEST_PDU));
             int structRef = packStringRef(3, offsets.get("struct_test_pdu"));
             int elementRef = packStringRef(3, offsets.get("TEST_ELEMENT"));
             int fieldRef = packStringRef(3, offsets.get("iq_dump_result"));
@@ -200,8 +206,8 @@ class MddbSchemaTest {
             MddbSchema schema = new MddbSchema(db, sp, enums, types, structs);
             assertEquals(
                 "TEST_PDU: struct size=32768 align=2 { +0x0 TEST_ELEMENT iq_dump_result[8192] }",
-                schema.describeSpMatch(le32(3), offsets.get("TEST_PDU")));
-            MddbSchema.ResolvedType type = schema.resolveTypeByName("TEST_PDU");
+                schema.describeSpMatch(le32(3), offsets.get(TEST_PDU)));
+            MddbSchema.ResolvedType type = schema.resolveTypeByName(TEST_PDU);
             assertNotNull(type);
             assertEquals(8192, type.fields().get(0).arrayCount());
         }

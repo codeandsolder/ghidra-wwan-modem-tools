@@ -16,6 +16,8 @@ import ghidra.program.model.mem.MemoryBlock;
 
 /** Chooses a deduplicated logical address view for MediaTek cross-build analysis. */
 public final class ProgramComparisonScope {
+    private static final String MIRROR_BLOCK = "mirror";
+    private static final String MAIN_BLOCK = "main";
     private static final long MTK_RUNTIME_ALIAS = 0x90000000L;
 
     private ProgramComparisonScope() {}
@@ -27,8 +29,8 @@ public final class ProgramComparisonScope {
      */
     public static List<MemoryBlock> blocks(Program program) {
         Memory memory = program.getMemory();
-        MemoryBlock mirror = memory.getBlock("mirror");
-        MemoryBlock main = memory.getBlock("main");
+        MemoryBlock mirror = memory.getBlock(MIRROR_BLOCK);
+        MemoryBlock main = memory.getBlock(MAIN_BLOCK);
         List<MemoryBlock> loaded = loadedInitializedBlocks(memory);
         if (!isNccMtkAliasPair(mirror, main)) {
             return loaded;
@@ -62,8 +64,8 @@ public final class ProgramComparisonScope {
     /** Return the canonical low-mirror address for an address in either NCC loader alias. */
     public static Address canonicalAddress(Program program, Address address) {
         Memory memory = program.getMemory();
-        MemoryBlock mirror = memory.getBlock("mirror");
-        MemoryBlock main = memory.getBlock("main");
+        MemoryBlock mirror = memory.getBlock(MIRROR_BLOCK);
+        MemoryBlock main = memory.getBlock(MAIN_BLOCK);
         if (!isNccMtkAliasPair(mirror, main) || !main.contains(address)) {
             return address;
         }
@@ -77,8 +79,8 @@ public final class ProgramComparisonScope {
      */
     public static List<Address> equivalentAddresses(Program program, Address address) {
         Memory memory = program.getMemory();
-        MemoryBlock mirror = memory.getBlock("mirror");
-        MemoryBlock main = memory.getBlock("main");
+        MemoryBlock mirror = memory.getBlock(MIRROR_BLOCK);
+        MemoryBlock main = memory.getBlock(MAIN_BLOCK);
         if (!isNccMtkAliasPair(mirror, main)) {
             return List.of(address);
         }
@@ -147,7 +149,7 @@ public final class ProgramComparisonScope {
 
     public static String description(Program program) {
         Memory memory = program.getMemory();
-        if (isNccMtkAliasPair(memory.getBlock("mirror"), memory.getBlock("main"))) {
+        if (isNccMtkAliasPair(memory.getBlock(MIRROR_BLOCK), memory.getBlock(MAIN_BLOCK))) {
             return "NCC MediaTek deduplicated mirror/main function view + canonical strings";
         }
         return blocks(program).size() + " loaded initialized block(s)";

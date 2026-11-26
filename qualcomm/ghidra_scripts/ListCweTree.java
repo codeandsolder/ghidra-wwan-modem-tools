@@ -5,7 +5,12 @@ import java.io.File;
 import java.io.IOException;
 
 import ghidra.app.script.GhidraScript;
-import ghidra.formats.gfilesystem.*;
+import ghidra.formats.gfilesystem.FSRL;
+import ghidra.formats.gfilesystem.FileSystemProbeConflictResolver;
+import ghidra.formats.gfilesystem.FileSystemRef;
+import ghidra.formats.gfilesystem.FileSystemService;
+import ghidra.formats.gfilesystem.GFile;
+import ghidra.formats.gfilesystem.GFileSystem;
 
 public class ListCweTree extends GhidraScript {
     @Override

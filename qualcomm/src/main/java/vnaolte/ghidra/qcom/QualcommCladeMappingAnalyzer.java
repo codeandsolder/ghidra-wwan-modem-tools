@@ -1,5 +1,7 @@
 package vnaolte.ghidra.qcom;
 
+import ghidra.program.model.address.AddressOutOfBoundsException;
+import ghidra.program.model.mem.MemoryAccessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +45,7 @@ import ghidra.util.task.TaskMonitor;
  * {@code .clade.comp} metadata to sit next to an exact pointer to that block.
  */
 public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
+    private static final String CLADE_CATEGORY = "VNAOLTE/Qualcomm CLADE";
     private static final long PAGE_MASK = 0xfffL;
     private static final long MIN_REGION = 0x100000L;
     private static final long MAX_REGION = 0x40000000L;
@@ -165,14 +168,14 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
                     catch (CancelledException e) {
                         throw e;
                     }
-                    catch (Exception ignored) {
+                    catch (MemoryAccessException | AddressOutOfBoundsException ignored) {
                         // Keep scanning nearby metadata words.
                     }
                 }
                 try {
                     search = hit.add(needle.length);
                 }
-                catch (Exception e) {
+                catch (AddressOutOfBoundsException e) {
                     break;
                 }
             }
@@ -251,7 +254,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
                 try {
                     got = memory.getBytes(chunkStart, buf, 0, want);
                 }
-                catch (Exception e) {
+                catch (MemoryAccessException e) {
                     break;
                 }
                 if (got < 16) {
@@ -309,7 +312,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
             runtimeAddress = space.getAddress(runtimeStart);
             runtimeLast = space.getAddress(runtimeEnd - 1);
         }
-        catch (Exception e) {
+        catch (AddressOutOfBoundsException e) {
             return null;
         }
         MemoryBlock packed = memory.getBlock(compressedAddress);
@@ -332,7 +335,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
 
     private static double entropy(Memory memory, MemoryBlock block, TaskMonitor monitor)
             throws CancelledException {
-        int n = (int) Math.min(block.getSize(), ENTROPY_SAMPLE);
+        int n = Math.min(block.getSize(), ENTROPY_SAMPLE);
         if (n <= 0) {
             return 0.0;
         }
@@ -344,7 +347,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
             }
             n = got;
         }
-        catch (Exception e) {
+        catch (MemoryAccessException e) {
             return 0.0;
         }
         long[] counts = new long[256];
@@ -356,7 +359,9 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
         }
         double h = 0.0;
         for (long count : counts) {
-            if (count == 0) continue;
+            if (count == 0) {
+                continue;
+            }
             double p = (double) count / n;
             h -= p * (Math.log(p) / Math.log(2.0));
         }
@@ -372,9 +377,9 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
             m.runtimeEnd() - m.runtimeStart(), m.entropy());
         program.getListing().setComment(m.tupleAddress(), CommentType.EOL, text);
         program.getBookmarkManager().setBookmark(m.tupleAddress(), BookmarkType.ANALYSIS,
-            "VNAOLTE/Qualcomm CLADE", text);
+            CLADE_CATEGORY, text);
         program.getBookmarkManager().setBookmark(m.packedBlock().getStart(), BookmarkType.ANALYSIS,
-            "VNAOLTE/Qualcomm CLADE", text);
+            CLADE_CATEGORY, text);
         String old = m.packedBlock().getComment();
         if (old == null || old.isBlank()) {
             m.packedBlock().setComment(text);
@@ -391,9 +396,9 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
             packed.getName(), packed.getStart().getOffset(), packed.getSize(), region.entropy());
         program.getListing().setComment(region.metadataAddress(), CommentType.EOL, text);
         program.getBookmarkManager().setBookmark(region.metadataAddress(), BookmarkType.ANALYSIS,
-            "VNAOLTE/Qualcomm CLADE", text);
+            CLADE_CATEGORY, text);
         program.getBookmarkManager().setBookmark(packed.getStart(), BookmarkType.ANALYSIS,
-            "VNAOLTE/Qualcomm CLADE", text);
+            CLADE_CATEGORY, text);
         String old = packed.getComment();
         if (old == null || old.isBlank()) {
             packed.setComment(text);

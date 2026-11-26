@@ -1,5 +1,9 @@
 package vnaolte.ghidra.qcom;
 
+import ghidra.framework.store.LockException;
+import ghidra.program.model.address.AddressOutOfBoundsException;
+import ghidra.program.model.address.AddressOverflowException;
+import ghidra.program.model.mem.MemoryConflictException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -107,7 +111,7 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                     continue;
                 }
             }
-            catch (MemoryAccessException | RuntimeException e) {
+            catch (MemoryAccessException e) {
                 continue;
             }
 
@@ -175,7 +179,8 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
             catch (CancelledException e) {
                 throw e;
             }
-            catch (Exception e) {
+            catch (LockException | MemoryConflictException | AddressOverflowException |
+                    AddressOutOfBoundsException | IllegalArgumentException e) {
                 log.appendException(e);
             }
         }
@@ -235,8 +240,7 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
         try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(input));
                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buf = new byte[32 * 1024];
-            int n;
-            while ((n = in.read(buf)) >= 0) {
+            for (int n = in.read(buf); n >= 0; n = in.read(buf)) {
                 if ((long) out.size() + n > MAX_UNPACKED) {
                     throw new IOException("zlib output exceeds safety cap");
                 }
@@ -247,8 +251,8 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
     }
 
     private static byte[] inflateRawBody(byte[] input) throws IOException {
-        Inflater inflater = new Inflater(true);
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (Inflater inflater = new Inflater(true);
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             inflater.setInput(input, 2, input.length - 6);
             byte[] buf = new byte[32 * 1024];
             while (!inflater.finished()) {
@@ -278,9 +282,6 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                 throw new IOException("raw DEFLATE body has trailing bytes before Adler-32");
             }
             return out.toByteArray();
-        }
-        finally {
-            inflater.end();
         }
     }
 
@@ -433,7 +434,7 @@ public final class QualcommZlibDebugOverlayAnalyzer extends AbstractAnalyzer {
                 s.append((char) c);
             }
         }
-        catch (Exception ignored) {
+        catch (MemoryAccessException | AddressOutOfBoundsException ignored) {
             // Pointer does not resolve in the normal modem image.
         }
         return null;

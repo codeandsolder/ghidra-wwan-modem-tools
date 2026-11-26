@@ -1,6 +1,9 @@
 package vnaolte.ghidra.yaffs;
 
-import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.*;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.COMMENT_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.NAME_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SIZE_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SYMLINK_DEST_ATTR;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -188,8 +191,9 @@ public final class SierraYaffsFileSystem implements GFileSystem {
         for (Node node : ordered) {
             monitor.checkCancelled();
             String path = paths.get(node.objectId);
-            GFile file = fsIndex.storeFile(path, nextIndex++, node.isDirectory(),
+            GFile file = fsIndex.storeFile(path, nextIndex, node.isDirectory(),
                 node.isDirectory() ? 0 : node.size, node);
+            nextIndex++;
             filesByObjectId.put(node.objectId, file);
         }
 
@@ -201,12 +205,14 @@ public final class SierraYaffsFileSystem implements GFileSystem {
             }
         }
         if (!orphans.isEmpty()) {
-            fsIndex.storeFile("_orphan", nextIndex++, true, 0, null);
+            fsIndex.storeFile("_orphan", nextIndex, true, 0, null);
+            nextIndex++;
             orphans.sort(Comparator.comparingLong(n -> n.objectId));
             for (Node node : orphans) {
                 String path = "_orphan/obj_" + node.objectId + "_" + sanitize(node.name);
-                GFile file = fsIndex.storeFile(path, nextIndex++, node.isDirectory(),
+                GFile file = fsIndex.storeFile(path, nextIndex, node.isDirectory(),
                     node.isDirectory() ? 0 : node.size, node);
+                nextIndex++;
                 filesByObjectId.put(node.objectId, file);
             }
         }

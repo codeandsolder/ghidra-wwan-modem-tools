@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.listing.Function;
@@ -46,7 +45,9 @@ public class DumpVnaolteRfReport extends GhidraScript {
             for (Row row : rows) {
                 Function f = row.function();
                 String comment = f.getRepeatableComment();
-                if (comment == null) comment = "";
+                if (comment == null) {
+                    comment = "";
+                }
                 comment = comment.replace((char) 9, (char) 32)
                     .replace((char) 10, (char) 32).replace((char) 13, (char) 32);
                 pw.printf("%s\t%s\t%s\t%s%n", f.getEntryPoint(), f.getName(),

@@ -1,14 +1,24 @@
 // Export the EM7455 DSP2 /image tree through the VNAOLTE Ghidra filesystem plugins.
 //@category VNAOLTE
 
-import java.io.*;
-import java.nio.file.*;
-import java.security.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import ghidra.app.script.GhidraScript;
 import ghidra.app.util.bin.ByteProvider;
-import ghidra.formats.gfilesystem.*;
+import ghidra.formats.gfilesystem.FSRL;
+import ghidra.formats.gfilesystem.FileSystemProbeConflictResolver;
+import ghidra.formats.gfilesystem.FileSystemRef;
+import ghidra.formats.gfilesystem.FileSystemService;
+import ghidra.formats.gfilesystem.GFile;
 
 public class ExportEm7455Dsp extends GhidraScript {
     @Override
@@ -23,20 +33,32 @@ public class ExportEm7455Dsp extends GhidraScript {
         Files.createDirectories(out);
         try (FileSystemRef cweRef = fss.probeFileForFilesystem(local, monitor,
                 FileSystemProbeConflictResolver.CHOOSEFIRST)) {
-            if (cweRef == null) throw new IOException("CWE filesystem not recognized");
+            if (cweRef == null) {
+                throw new IOException("CWE filesystem not recognized");
+            }
             GFile dsp = cweRef.getFilesystem().lookup("/MODM/DSP2.yaffs2");
-            if (dsp == null) throw new IOException("DSP2 leaf not found");
+            if (dsp == null) {
+                throw new IOException("DSP2 leaf not found");
+            }
             try (FileSystemRef yaffsRef = fss.probeFileForFilesystem(dsp.getFSRL(), monitor,
                     FileSystemProbeConflictResolver.CHOOSEFIRST)) {
-                if (yaffsRef == null) throw new IOException("DSP2 YAFFS filesystem not recognized");
+                if (yaffsRef == null) {
+                    throw new IOException("DSP2 YAFFS filesystem not recognized");
+                }
                 GFile image = yaffsRef.getFilesystem().lookup("/image");
-                if (image == null) throw new IOException("/image directory not found");
+                if (image == null) {
+                    throw new IOException("/image directory not found");
+                }
                 List<String> manifest = new ArrayList<>();
                 for (GFile f : yaffsRef.getFilesystem().getListing(image)) {
                     monitor.checkCancelled();
-                    if (f.isDirectory()) continue;
+                    if (f.isDirectory()) {
+                        continue;
+                    }
                     try (ByteProvider bp = yaffsRef.getFilesystem().getByteProvider(f, monitor)) {
-                        if (bp == null) continue;
+                        if (bp == null) {
+                            continue;
+                        }
                         byte[] data = bp.readBytes(0, bp.length());
                         Path dest = out.resolve(f.getName());
                         Files.write(dest, data);
@@ -54,7 +76,9 @@ public class ExportEm7455Dsp extends GhidraScript {
 
     private static String hex(byte[] b) {
         StringBuilder s = new StringBuilder(b.length * 2);
-        for (byte x : b) s.append(String.format("%02x", x & 0xff));
+        for (byte x : b) {
+            s.append(String.format("%02x", x & 0xff));
+        }
         return s.toString();
     }
 }

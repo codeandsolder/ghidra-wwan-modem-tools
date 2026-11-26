@@ -1,6 +1,8 @@
 package vnaolte.ghidra.qcdt;
 
-import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.*;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.COMMENT_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.NAME_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.SIZE_ATTR;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,8 +111,10 @@ public final class QualcommQcdtFileSystem implements GFileSystem {
         for (Dtb dtb : unique.values()) {
             Selector first = dtb.selectors.get(0);
             String name = String.format("dtb/%02d_off%08x_p%04x_v%04x.dtb",
-                index++, dtb.offset, first.platform(), first.variant());
-            fsIndex.storeFile(name, nextIndex++, false, dtb.size, dtb);
+                index, dtb.offset, first.platform(), first.variant());
+            index++;
+            fsIndex.storeFile(name, nextIndex, false, dtb.size, dtb);
+            nextIndex++;
         }
     }
 
@@ -148,7 +152,7 @@ public final class QualcommQcdtFileSystem implements GFileSystem {
         return ((long) (b[off] & 0xff) << 24) |
             ((long) (b[off + 1] & 0xff) << 16) |
             ((long) (b[off + 2] & 0xff) << 8) |
-            (long) (b[off + 3] & 0xff);
+            (b[off + 3] & 0xff);
     }
 
     @Override

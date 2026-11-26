@@ -284,7 +284,7 @@ public final class VersionTrackingComparator {
             }
             Map<Long, Map<Integer, Object>> operands =
                 mapFunctionScalarAndAddressOperands(function, monitor);
-            if (operands != null) {
+            if (!operands.isEmpty()) {
                 out.put(function, operands);
             }
         }
@@ -304,7 +304,7 @@ public final class VersionTrackingComparator {
                 out.put(offsetInFunction(function, instruction.getAddress()), operands);
             }
         }
-        return out.isEmpty() ? null : out;
+        return out;
     }
 
     private static Map<Integer, Object> createOperandsMap(Instruction instruction) {
@@ -410,7 +410,7 @@ public final class VersionTrackingComparator {
 
     private static List<Match> collectMatches(VTSessionDB session, Program source, Program target,
             TaskMonitor monitor) throws CancelledException {
-        LinkedHashMap<String, Match> out = new LinkedHashMap<>();
+        Map<String, Match> out = new LinkedHashMap<>();
         for (VTMatchSet matchSet : session.getMatchSets()) {
             String correlator = matchSet.getProgramCorrelatorInfo().getName();
             for (VTMatch match : matchSet.getMatches()) {

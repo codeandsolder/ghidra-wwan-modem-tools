@@ -1,6 +1,8 @@
 package vnaolte.ghidra.cwe;
 
-import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.*;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.COMMENT_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.COMPRESSED_SIZE_ATTR;
+import static ghidra.formats.gfilesystem.fileinfo.FileAttributeType.NAME_ATTR;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,7 +11,12 @@ import java.util.zip.InflaterInputStream;
 
 import ghidra.app.util.bin.ByteProvider;
 import ghidra.app.util.bin.ByteProviderWrapper;
-import ghidra.formats.gfilesystem.*;
+import ghidra.formats.gfilesystem.FSRLRoot;
+import ghidra.formats.gfilesystem.FileSystemIndexHelper;
+import ghidra.formats.gfilesystem.FileSystemRefManager;
+import ghidra.formats.gfilesystem.FileSystemService;
+import ghidra.formats.gfilesystem.GFile;
+import ghidra.formats.gfilesystem.GFileSystem;
 import ghidra.formats.gfilesystem.annotations.FileSystemInfo;
 import ghidra.formats.gfilesystem.fileinfo.FileAttribute;
 import ghidra.formats.gfilesystem.fileinfo.FileAttributes;
@@ -41,7 +48,7 @@ public final class SierraCweFileSystem implements GFileSystem {
     void mount(TaskMonitor monitor) throws IOException, CancelledException {
         monitor.setMessage("Parsing Sierra Wireless CWE firmware...");
         SierraCweHeader root = SierraCweHeader.read(provider, 0);
-        if (!root.type.equals("SPKG")) {
+        if (!"SPKG".equals(root.type)) {
             addNode(root, "", monitor);
             return;
         }
@@ -56,7 +63,8 @@ public final class SierraCweFileSystem implements GFileSystem {
             Entry entry = new Entry(header.type, header.type, header.product, header.version,
                 header.date, header.payloadOffset(), header.payloadSize, header.checksum,
                 header.compressed, true);
-            fsIndex.storeFile(path, nextIndex++, true, 0, entry);
+            fsIndex.storeFile(path, nextIndex, true, 0, entry);
+            nextIndex++;
             parseChildren(header, path, monitor);
             return;
         }
@@ -65,8 +73,9 @@ public final class SierraCweFileSystem implements GFileSystem {
         String path = parent.isEmpty() ? filename : parent + "/" + filename;
         Entry entry = new Entry(filename, header.type, header.product, header.version, header.date,
             header.payloadOffset(), header.payloadSize, header.checksum, header.compressed, false);
-        fsIndex.storeFile(path, nextIndex++, false, header.compressed ? -1 : header.payloadSize,
+        fsIndex.storeFile(path, nextIndex, false, header.compressed ? -1 : header.payloadSize,
             entry);
+        nextIndex++;
     }
 
     private void parseChildren(SierraCweHeader container, String parent, TaskMonitor monitor)

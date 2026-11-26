@@ -37,7 +37,7 @@ public final class QualcommQcdtFileSystemFactory
     }
 
     static long u32le(byte[] b, int off) {
-        return (long) (b[off] & 0xff) |
+        return (b[off] & 0xff) |
             ((long) (b[off + 1] & 0xff) << 8) |
             ((long) (b[off + 2] & 0xff) << 16) |
             ((long) (b[off + 3] & 0xff) << 24);

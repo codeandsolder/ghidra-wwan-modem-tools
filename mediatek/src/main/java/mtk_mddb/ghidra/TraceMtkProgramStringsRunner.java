@@ -34,7 +34,7 @@ public final class TraceMtkProgramStringsRunner {
             throw new IllegalArgumentException("Supply at least one non-empty search substring");
         }
 
-        LinkedHashMap<String, Hit> hitsByKey = new LinkedHashMap<>();
+        Map<String, Hit> hitsByKey = new LinkedHashMap<>();
         Map<Address, Function> matchedFunctions = new LinkedHashMap<>();
         for (ProgramStringIndex.RawString string : ProgramStringIndex.asciiStrings(program, 4, 2048, monitor)) {
             monitor.checkCancelled();

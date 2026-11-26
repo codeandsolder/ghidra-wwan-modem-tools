@@ -1,6 +1,12 @@
 package vnaolte.ghidra.q6zip;
 
+import ghidra.framework.store.LockException;
+import ghidra.program.model.address.AddressOutOfBoundsException;
+import ghidra.program.model.address.AddressOverflowException;
+import ghidra.program.model.mem.MemoryAccessException;
+import ghidra.program.model.mem.MemoryConflictException;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Locale;
 
 import ghidra.app.services.AbstractAnalyzer;
@@ -90,7 +96,8 @@ public final class QualcommQ6ZipAnalyzer extends AbstractAnalyzer {
             catch (CancelledException e) {
                 throw e;
             }
-            catch (Exception e) {
+            catch (IOException | MemoryAccessException | LockException | MemoryConflictException |
+                    AddressOverflowException | AddressOutOfBoundsException | IllegalArgumentException e) {
                 log.appendMsg(getName(), block.getName() + ": " + e.getMessage());
             }
         }

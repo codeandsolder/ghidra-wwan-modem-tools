@@ -5,12 +5,15 @@ import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -30,6 +33,7 @@ import docking.widgets.filechooser.GhidraFileChooserMode;
 import ghidra.util.Msg;
 
 final class MtkMddbProvider extends ComponentProvider {
+    private static final String TITLE = "MediaTek MDDB";
     private static final int SEARCH_LIMIT = 500;
     private static final int CONTEXT = 96;
 
@@ -47,7 +51,7 @@ final class MtkMddbProvider extends ComponentProvider {
     private record DisplayResult(MddbSearchResult match, String schema) {}
 
     MtkMddbProvider(MtkMddbPlugin plugin) {
-        super(plugin.getTool(), "MediaTek MDDB", plugin.getName());
+        super(plugin.getTool(), TITLE, plugin.getName());
         this.plugin = plugin;
         model = new DefaultTableModel(new Object[] {"CF", "Field", "Key", "Offset", "Schema", "Context"}, 0) {
             @Override
@@ -58,7 +62,7 @@ final class MtkMddbProvider extends ComponentProvider {
         table = new JTable(model);
         buildUi();
         setDefaultWindowPosition(WindowPosition.BOTTOM);
-        setTabText("MediaTek MDDB");
+        setTabText(TITLE);
     }
 
     private void buildUi() {
@@ -134,19 +138,19 @@ final class MtkMddbProvider extends ComponentProvider {
                 // this worker is still running.
                 try (MddbDatabase left = MddbDatabase.open(sourcePath);
                      MddbDatabase right = MddbDatabase.open(path)) {
-                    StringBuilder summary = new StringBuilder();
+                    StringBuilder summary = new StringBuilder(512);
                     summary.append("Column family\tleft\tright\tcommon\tidentical\tchanged\tonly-left\tonly-right\n");
                     for (Map.Entry<String, MddbDatabase.ColumnFamilyDiff> entry :
                             left.compareRaw(right).entrySet()) {
                         MddbDatabase.ColumnFamilyDiff d = entry.getValue();
-                        summary.append(entry.getKey()).append("\t")
-                            .append(d.leftRecords()).append("\t")
-                            .append(d.rightRecords()).append("\t")
-                            .append(d.commonKeys()).append("\t")
-                            .append(d.identicalValues()).append("\t")
-                            .append(d.changedValues()).append("\t")
-                            .append(d.onlyLeft()).append("\t")
-                            .append(d.onlyRight()).append("\n");
+                        summary.append(entry.getKey()).append('\t')
+                            .append(d.leftRecords()).append('\t')
+                            .append(d.rightRecords()).append('\t')
+                            .append(d.commonKeys()).append('\t')
+                            .append(d.identicalValues()).append('\t')
+                            .append(d.changedValues()).append('\t')
+                            .append(d.onlyLeft()).append('\t')
+                            .append(d.onlyRight()).append('\n');
                     }
                     Set<String> leftStrings = left.stringPoolStrings(4, 256);
                     Set<String> rightStrings = right.stringPoolStrings(4, 256);
@@ -186,9 +190,12 @@ final class MtkMddbProvider extends ComponentProvider {
                     String summary = get();
                     statusLabel.setText("Comparison complete: " + path);
                     Msg.showInfo(this, panel, "MediaTek MDDB comparison", summary);
-                } catch (Exception e) {
+                } catch (InterruptedException | ExecutionException | CancellationException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     statusLabel.setText("Comparison failed: " + e.getMessage());
-                    Msg.showError(this, panel, "MediaTek MDDB", "Comparison failed", e);
+                    Msg.showError(this, panel, TITLE, "Comparison failed", e);
                 }
             }
         }.execute();
@@ -234,9 +241,12 @@ final class MtkMddbProvider extends ComponentProvider {
                     }
                     statusLabel.setText("Loaded " + opened.columnFamilies().size() +
                         " column families; DATAA " + opened.dataASize() + " bytes");
-                } catch (Exception e) {
+                } catch (InterruptedException | ExecutionException | CancellationException | IOException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     statusLabel.setText("Open failed: " + e.getMessage());
-                    Msg.showError(this, panel, "MediaTek MDDB", "Failed to open " + path, e);
+                    Msg.showError(this, panel, TITLE, "Failed to open " + path, e);
                 }
             }
         }.execute();
@@ -284,9 +294,12 @@ final class MtkMddbProvider extends ComponentProvider {
                     }
                     statusLabel.setText("Found " + rows.size() +
                         (rows.size() >= SEARCH_LIMIT ? " matches (limit reached)" : " matches"));
-                } catch (Exception e) {
+                } catch (InterruptedException | ExecutionException | CancellationException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     statusLabel.setText("Search failed: " + e.getMessage());
-                    Msg.showError(this, panel, "MediaTek MDDB", "Search failed", e);
+                    Msg.showError(this, panel, TITLE, "Search failed", e);
                 }
             }
         }.execute();
@@ -340,7 +353,7 @@ final class MtkMddbProvider extends ComponentProvider {
         if (db != null) {
             try {
                 db.close();
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Msg.error(this, "Failed to close MediaTek MDDB", e);
             }
         }

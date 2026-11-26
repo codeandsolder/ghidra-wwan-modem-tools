@@ -1,7 +1,9 @@
 package mtk_mddb.ghidra;
 
+import ghidra.util.exception.CancelledException;
 import java.nio.file.Path;
 import java.util.List;
+import org.rocksdb.RocksDBException;
 
 import javax.swing.SwingUtilities;
 
@@ -22,13 +24,15 @@ import ghidra.util.task.TaskMonitor;
 
 @PluginInfo(
     status = PluginStatus.RELEASED,
-    packageName = "MediaTek MDDB",
+    packageName = MtkMddbPlugin.TITLE,
     category = PluginCategoryNames.ANALYSIS,
     shortDescription = "Browse MediaTek Catcher/META MDDB databases",
     description = "Opens MediaTek CATD .EDB modem databases, browses their embedded RocksDB, " +
         "and maps database strings back into the current Ghidra program."
 )
 public final class MtkMddbPlugin extends ProgramPlugin {
+    private static final String TITLE = "MediaTek MDDB";
+    private static final String OPEN_PROGRAM_FIRST = "Open a program first.";
     private final MtkMddbProvider provider;
 
     public MtkMddbPlugin(PluginTool tool) {
@@ -45,7 +49,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                 provider.chooseAndOpen();
             }
         };
-        open.setMenuBarData(new MenuData(new String[] {"Tools", "MediaTek MDDB", "Open EDB..."}));
+        open.setMenuBarData(new MenuData(new String[] {"Tools", TITLE, "Open EDB..."}));
         tool.addAction(open);
 
         DockingAction show = new DockingAction("Show MediaTek MDDB", getName()) {
@@ -55,7 +59,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                 provider.toFront();
             }
         };
-        show.setMenuBarData(new MenuData(new String[] {"Tools", "MediaTek MDDB", "Show Browser"}));
+        show.setMenuBarData(new MenuData(new String[] {"Tools", TITLE, "Show Browser"}));
         tool.addAction(show);
     }
 
@@ -66,7 +70,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
     void findInProgram(String text) {
         Program program = currentProgram;
         if (program == null) {
-            Msg.showWarn(this, provider.getComponent(), "MediaTek MDDB", "Open a program first.");
+            Msg.showWarn(this, provider.getComponent(), TITLE, OPEN_PROGRAM_FIRST);
             return;
         }
         Task task = new Task("Find MDDB text in program", true, true, true) {
@@ -75,13 +79,15 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                 try {
                     List<Address> hits = ProgramAnnotator.findAscii(program, text, monitor);
                     if (hits.isEmpty()) {
-                        Msg.showInfo(this, provider.getComponent(), "MediaTek MDDB",
+                        Msg.showInfo(this, provider.getComponent(), TITLE,
                             "No program bytes matched: " + text);
                         return;
                     }
                     SwingUtilities.invokeLater(() -> goTo(hits.get(0)));
-                } catch (Exception e) {
-                    Msg.showError(this, provider.getComponent(), "MediaTek MDDB", "Program search failed", e);
+                } catch (CancelledException e) {
+                    // User cancelled the task.
+                } catch (IllegalArgumentException e) {
+                    Msg.showError(this, provider.getComponent(), TITLE, "Program search failed", e);
                 }
             }
         };
@@ -91,7 +97,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
     void goToCodeXref(String text) {
         Program program = currentProgram;
         if (program == null) {
-            Msg.showWarn(this, provider.getComponent(), "MediaTek MDDB", "Open a program first.");
+            Msg.showWarn(this, provider.getComponent(), TITLE, OPEN_PROGRAM_FIRST);
             return;
         }
         Task task = new Task("Find MDDB code xref", true, true, true) {
@@ -100,13 +106,15 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                 try {
                     List<Address> refs = ProgramAnnotator.findCodeReferences(program, text, monitor);
                     if (refs.isEmpty()) {
-                        Msg.showInfo(this, provider.getComponent(), "MediaTek MDDB",
+                        Msg.showInfo(this, provider.getComponent(), TITLE,
                             "No code references found for: " + text);
                         return;
                     }
                     SwingUtilities.invokeLater(() -> goTo(refs.get(0)));
-                } catch (Exception e) {
-                    Msg.showError(this, provider.getComponent(), "MediaTek MDDB", "Code xref search failed", e);
+                } catch (CancelledException e) {
+                    // User cancelled the task.
+                } catch (IllegalArgumentException e) {
+                    Msg.showError(this, provider.getComponent(), TITLE, "Code xref search failed", e);
                 }
             }
         };
@@ -116,7 +124,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
     void importDataType(MddbDatabase database, MddbSearchResult result) {
         Program program = currentProgram;
         if (program == null) {
-            Msg.showWarn(this, provider.getComponent(), "MediaTek MDDB", "Open a program first.");
+            Msg.showWarn(this, provider.getComponent(), TITLE, OPEN_PROGRAM_FIRST);
             return;
         }
         Task task = new Task("Import MDDB data type", true, true, true) {
@@ -126,15 +134,17 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                     MddbTypeImporter.ImportSummary summary =
                         MddbTypeImporter.importSelection(program, database, result, monitor);
                     if (summary.imported().isEmpty()) {
-                        Msg.showInfo(this, provider.getComponent(), "MediaTek MDDB",
+                        Msg.showInfo(this, provider.getComponent(), TITLE,
                             "The selected MDDB result does not resolve to a decoded type or enum.");
                     } else {
-                        Msg.showInfo(this, provider.getComponent(), "MediaTek MDDB",
+                        Msg.showInfo(this, provider.getComponent(), TITLE,
                             "Imported into the program data-type manager:\n" +
                                 String.join("\n", summary.imported()));
                     }
-                } catch (Exception e) {
-                    Msg.showError(this, provider.getComponent(), "MediaTek MDDB",
+                } catch (CancelledException e) {
+                    // User cancelled the task.
+                } catch (RocksDBException | IllegalArgumentException e) {
+                    Msg.showError(this, provider.getComponent(), TITLE,
                         "Data-type import failed", e);
                 }
             }
@@ -145,7 +155,7 @@ public final class MtkMddbPlugin extends ProgramPlugin {
     void annotateInProgram(String text) {
         Program program = currentProgram;
         if (program == null) {
-            Msg.showWarn(this, provider.getComponent(), "MediaTek MDDB", "Open a program first.");
+            Msg.showWarn(this, provider.getComponent(), TITLE, OPEN_PROGRAM_FIRST);
             return;
         }
         Task task = new Task("Annotate MDDB matches", true, true, true) {
@@ -164,9 +174,11 @@ public final class MtkMddbPlugin extends ProgramPlugin {
                                 String.join("\n", summary.functions().stream().limit(12).toList());
                         }
                     }
-                    Msg.showInfo(this, provider.getComponent(), "MediaTek MDDB", message);
-                } catch (Exception e) {
-                    Msg.showError(this, provider.getComponent(), "MediaTek MDDB", "Annotation failed", e);
+                    Msg.showInfo(this, provider.getComponent(), TITLE, message);
+                } catch (CancelledException e) {
+                    // User cancelled the task.
+                } catch (IllegalArgumentException e) {
+                    Msg.showError(this, provider.getComponent(), TITLE, "Annotation failed", e);
                 }
             }
         };

@@ -43,11 +43,7 @@ public final class ProgramAnnotator {
                     break;
                 }
                 hits.add(hit);
-                try {
-                    cursor = hit.add(1);
-                } catch (RuntimeException e) {
-                    break;
-                }
+                cursor = hit.next();
             }
         }
         return hits;
@@ -55,7 +51,7 @@ public final class ProgramAnnotator {
 
     public static List<Address> findCodeReferences(Program program, String text, TaskMonitor monitor)
             throws CancelledException {
-        LinkedHashSet<Address> refs = new LinkedHashSet<>();
+        Set<Address> refs = new LinkedHashSet<>();
         for (Address hit : findAscii(program, text, monitor)) {
             monitor.checkCancelled();
             for (Address target : ProgramComparisonScope.equivalentAddresses(program, hit)) {
@@ -82,8 +78,8 @@ public final class ProgramAnnotator {
         }
         int tx = program.startTransaction("Annotate MediaTek MDDB matches");
         boolean commit = false;
-        LinkedHashSet<Address> codeRefs = new LinkedHashSet<>();
-        LinkedHashSet<String> functionNames = new LinkedHashSet<>();
+        Set<Address> codeRefs = new LinkedHashSet<>();
+        Set<String> functionNames = new LinkedHashSet<>();
         try {
             SymbolTable symbols = program.getSymbolTable();
             String comment = "MediaTek MDDB: " + text;

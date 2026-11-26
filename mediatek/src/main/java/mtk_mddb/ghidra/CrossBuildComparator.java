@@ -120,7 +120,7 @@ public final class CrossBuildComparator {
         Map<String, Set<Function>> targetIndex = indexProgramStrings(
             target, targetRawStrings, commonStrings, monitor);
 
-        LinkedHashMap<AddressPair, LinkedHashSet<String>> anchorsByPair = new LinkedHashMap<>();
+        Map<AddressPair, Set<String>> anchorsByPair = new LinkedHashMap<>();
         int uniqueAnchors = 0;
         for (String anchor : commonStrings) {
             monitor.checkCancelled();
@@ -160,7 +160,7 @@ public final class CrossBuildComparator {
         }
 
         List<FunctionPair> pairs = new ArrayList<>(anchorsByPair.size());
-        for (Map.Entry<AddressPair, LinkedHashSet<String>> entry : anchorsByPair.entrySet()) {
+        for (Map.Entry<AddressPair, Set<String>> entry : anchorsByPair.entrySet()) {
             monitor.checkCancelled();
             AddressPair key = entry.getKey();
             Function left = sourceFunctions.get(key.source());
@@ -197,7 +197,6 @@ public final class CrossBuildComparator {
             List.copyOf(pairs));
     }
 
-
     private static ProgramStringDiff programStringDiff(
             List<ProgramStringIndex.RawString> sourceStrings,
             List<ProgramStringIndex.RawString> targetStrings) {
@@ -224,14 +223,14 @@ public final class CrossBuildComparator {
     private static Map<String, Set<Function>> indexProgramStrings(Program program,
             List<ProgramStringIndex.RawString> rawStrings, Set<String> anchors, TaskMonitor monitor)
             throws CancelledException {
-        LinkedHashMap<String, Set<Function>> out = new LinkedHashMap<>();
+        Map<String, Set<Function>> out = new LinkedHashMap<>();
         for (ProgramStringIndex.RawString string : rawStrings) {
             monitor.checkCancelled();
             String value = string.value();
             if (!anchors.contains(value)) {
                 continue;
             }
-            LinkedHashSet<Function> functions = new LinkedHashSet<>();
+            Set<Function> functions = new LinkedHashSet<>();
             for (Address targetAddress :
                     ProgramComparisonScope.equivalentAddresses(program, string.address())) {
                 ReferenceIterator references =
@@ -337,7 +336,7 @@ public final class CrossBuildComparator {
 
     private static Map<Address, Function> functionsByEntry(Program program,
             Collection<Address> addresses) {
-        LinkedHashMap<Address, Function> out = new LinkedHashMap<>();
+        Map<Address, Function> out = new LinkedHashMap<>();
         for (Address address : new LinkedHashSet<>(addresses)) {
             Function function = program.getFunctionManager().getFunctionAt(address);
             if (function != null) {
@@ -349,7 +348,7 @@ public final class CrossBuildComparator {
 
     private static Map<Address, FidSignature> hashFunctions(FidService service,
             Collection<Function> functions, TaskMonitor monitor) throws CancelledException {
-        LinkedHashMap<Address, FidSignature> out = new LinkedHashMap<>();
+        Map<Address, FidSignature> out = new LinkedHashMap<>();
         for (Function function : functions) {
             monitor.checkCancelled();
             try {
@@ -385,7 +384,7 @@ public final class CrossBuildComparator {
             signatures.setVectorFactory(vectorFactory);
             signatures.openProgram(program, null, null, null, null, null);
             signatures.scanFunctions(functions.iterator(), functions.size(), monitor);
-            LinkedHashMap<Address, LSHVector> out = new LinkedHashMap<>();
+            Map<Address, LSHVector> out = new LinkedHashMap<>();
             Iterator<FunctionDescription> descriptions =
                 signatures.getDescriptionManager().listAllFunctions();
             while (descriptions.hasNext()) {

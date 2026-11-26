@@ -7,13 +7,15 @@ import ghidra.app.util.importer.MessageLog;
 import ghidra.program.model.listing.Bookmark;
 import ghidra.program.model.mem.MemoryBlock;
 import vnaolte.ghidra.q6zip.QualcommQ6ZipAnalyzer;
-import vnaolte.ghidra.qcom.QualcommZlibDebugOverlayAnalyzer;
 import vnaolte.ghidra.qcom.QualcommCladeMappingAnalyzer;
+import vnaolte.ghidra.qcom.QualcommZlibDebugOverlayAnalyzer;
 
 public class ProbeQualcommPacked extends GhidraScript {
     @Override
     protected void run() throws Exception {
-        if (currentProgram == null) throw new IllegalStateException("No current program");
+        if (currentProgram == null) {
+            throw new IllegalStateException("No current program");
+        }
 
         MessageLog qlog = new MessageLog();
         MessageLog zlog = new MessageLog();
@@ -30,13 +32,20 @@ public class ProbeQualcommPacked extends GhidraScript {
             currentProgram.getMemory().getLoadedAndInitializedAddressSet(), monitor, clog);
 
         println("PACKED_PROBE_Q6ZIP_OK=" + qok);
-        if (!qlog.toString().isBlank()) println(qlog.toString());
+        if (!qlog.toString().isBlank()) {
+            println(qlog.toString());
+        }
         println("PACKED_PROBE_ZLIB_OK=" + zok);
-        if (!zlog.toString().isBlank()) println(zlog.toString());
+        if (!zlog.toString().isBlank()) {
+            println(zlog.toString());
+        }
         println("PACKED_PROBE_CLADE_OK=" + cok);
-        if (!clog.toString().isBlank()) println(clog.toString());
+        if (!clog.toString().isBlank()) {
+            println(clog.toString());
+        }
 
-        int qblocks = 0, zblocks = 0;
+        int qblocks = 0;
+        int zblocks = 0;
         for (MemoryBlock b : currentProgram.getMemory().getBlocks()) {
             if (b.getName().startsWith("q6zip_")) {
                 qblocks++;
@@ -56,8 +65,12 @@ public class ProbeQualcommPacked extends GhidraScript {
         while (it.hasNext()) {
             Bookmark b = it.next();
             String category = b.getCategory();
-            if (category != null && category.startsWith("VNAOLTE/")) rfBookmarks++;
-            if ("VNAOLTE/Qualcomm CLADE".equals(category)) cladeBookmarks++;
+            if (category != null && category.startsWith("VNAOLTE/")) {
+                rfBookmarks++;
+            }
+            if ("VNAOLTE/Qualcomm CLADE".equals(category)) {
+                cladeBookmarks++;
+            }
         }
         println("PACKED_PROBE_SUMMARY q6zip_blocks=" + qblocks + " zlib_blocks=" + zblocks +
             " clade_bookmarks=" + cladeBookmarks + " vnaolte_bookmarks=" + rfBookmarks);
