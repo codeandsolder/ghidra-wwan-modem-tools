@@ -139,7 +139,7 @@ For an already-analyzed persisted corpus, pass **`-noanalysis`** to `analyzeHead
 
 The original extraction/query tools remain useful for scripting and bulk archaeology.
 
-With `uv`:
+From the repository’s `cli/` directory, with `uv`:
 
 ```bash
 uv sync
@@ -207,7 +207,7 @@ Other MediaTek Catcher/META generations may use related but different layouts. U
 
 ## Development
 
-Python checks:
+Python checks (from `cli/`):
 
 ```bash
 uv sync --all-groups
@@ -220,8 +220,7 @@ uv run pytest
 Build the Ghidra extension against an installed Ghidra 12.2:
 
 ```bash
-export JAVA_HOME=/path/to/jdk-25
-./gradlew packageExtension --no-daemon -PghidraInstallDir=/path/to/ghidra_12.2_PUBLIC -ProcksdbPlatform=linux64
+./gradlew :mtk-mddb-tools:packageExtension --no-daemon -PghidraInstallDir=/path/to/ghidra_12.2_PUBLIC -ProcksdbPlatform=linux64
 ```
 
 Select `linux64`, `win64`, or `osx` with the Gradle property (default: host platform). Invoke the same task separately for each release platform; Gradle synchronizes the generated `lib/` directory and verifies the exact output in `dist/`. No manual clean or archive renaming is required. The Ghidra distribution is selected through the explicit `-PghidraInstallDir` property.

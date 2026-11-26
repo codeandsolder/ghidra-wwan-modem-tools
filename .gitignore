@@ -1,3 +1,16 @@
 .gradle/
 build/
 dist/
+lib/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+*.egg-info/
+.cache/
+*.EDB
+*.edb
+*.sst
+DATAA.bin
+DATAI.bin
