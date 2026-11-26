@@ -1,0 +1,37 @@
+name: Setup pinned Ghidra
+description: Prepare Java 25 and the checksum-pinned Ghidra SDK
+outputs:
+  install-dir:
+    description: Absolute path to Ghidra
+    value: ${{ steps.sdk.outputs.install-dir }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: temurin
+        java-version: '25'
+        cache: gradle
+    - id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ghidra-wwan/ghidra_12.2_PUBLIC
+        key: ghidra-12.2-20261016-2c2cd776db3c1f6a097ba418922378ac3649cadd5e844a6f5f088ae628a7be67
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.cache/ghidra-wwan"
+        archive="$RUNNER_TEMP/ghidra.zip"
+        curl --fail --location --retry 3 -o "$archive" https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
+        echo "2c2cd776db3c1f6a097ba418922378ac3649cadd5e844a6f5f088ae628a7be67  $archive" | sha256sum -c -
+        unzip -q "$archive" -d "$HOME/.cache/ghidra-wwan"
+        rm "$archive"
+    - id: sdk
+      shell: bash
+      run: |
+        set -euo pipefail
+        ghidra="$HOME/.cache/ghidra-wwan/ghidra_12.2_PUBLIC"
+        test -f "$ghidra/support/buildExtension.gradle"
+        grep -Fxq 'application.version=12.2' "$ghidra/Ghidra/application.properties"
+        echo "install-dir=$ghidra" >> "$GITHUB_OUTPUT"
