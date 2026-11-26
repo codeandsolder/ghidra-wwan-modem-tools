@@ -335,7 +335,7 @@ public final class QualcommCladeMappingAnalyzer extends AbstractAnalyzer {
 
     private static double entropy(Memory memory, MemoryBlock block, TaskMonitor monitor)
             throws CancelledException {
-        int n = Math.min(block.getSize(), ENTROPY_SAMPLE);
+        int n = Math.toIntExact(Math.min(block.getSize(), ENTROPY_SAMPLE));
         if (n <= 0) {
             return 0.0;
         }

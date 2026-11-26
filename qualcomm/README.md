@@ -72,6 +72,6 @@ The verification must end with `EM7455_PACKED_VERIFY=PASS`.
 
 ## Continuous integration
 
-Public CI runs on GitHub-hosted Linux runners. It pins Ghidra 12.2 by release SHA-256, uses JDK 25 and the checked-in Gradle 9.1.0 wrapper, runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs, and uploads the extension ZIP.
+Public CI runs on GitHub-hosted Linux runners. It pins Ghidra 12.2 by release SHA-256, uses JDK 25 and the checked-in Gradle 9.1.0 wrapper, runs the focused unit tests, builds the extension, verifies the packaged JAR/scripts/docs; tagged releases publish the extension ZIP.
 
 The five-firmware packed-format regression harness remains in `ci/run-packed-regression.sh`, but the modem images are intentionally not redistributed in this public repository. Maintainers with the hash-pinned fixture corpus can run it by setting `VNAOLTE_FIXTURE_ROOT` (and optionally `VNAOLTE_QCOM_LOADERS`) before invoking the script. Fixture hashes and expected outcomes are documented in `docs/PACKED_REGRESSION_MATRIX.md`.
