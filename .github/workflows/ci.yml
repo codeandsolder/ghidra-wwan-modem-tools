@@ -13,8 +13,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  java-quality:
-    uses: codeandsolder/ci-workflows/.github/workflows/java-quality.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
   extensions:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +24,7 @@ jobs:
       - name: Verify and package both extensions
         run: ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform=linux64 packageExtensions
   source-quality:
-    uses: codeandsolder/ci-workflows/.github/workflows/source-quality.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
+    uses: codeandsolder/ci-workflows/.github/workflows/source-quality.yml@ce05e1ab3124112fcd04a34d0b365a880ebed4bd # main
   renovate-config:
     uses: codeandsolder/ci-workflows/.github/workflows/renovate-config.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
   cli:
