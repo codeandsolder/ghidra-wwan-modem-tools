@@ -1,5 +1,9 @@
 package mtk_mddb.ghidra;
 
+import mtk_mddb.core.MddbDatabase;
+import mtk_mddb.core.MddbSchema;
+import mtk_mddb.core.MddbSearchResult;
+
 import ghidra.util.exception.CancelledException;
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -25,8 +25,13 @@ Use `-ProcksdbPlatform=linux64`, `win64` or `osx` to select the MDDB native
 runtime (default is the build host). Qualcomm does not bundle RocksDB.
 Install either or both through Ghidra's extension manager.
 
-The CLI is a separate package; from `cli/` use `uv sync --all-groups`,
-`uv run pytest`, or `uv build`.
+The Ghidra-independent `core/` library and CLI build without the SDK:
+
+```sh
+./gradlew --no-daemon check :cli:distZip
+```
+
+The CLI and MediaTek extension use the same decoding and database implementation.
 
 Both extension histories are preserved, including the original
 [mtk-mddb-tools](https://github.com/codeandsolder/mtk-mddb-tools) project.

@@ -1,4 +1,4 @@
-package mtk_mddb.ghidra;
+package mtk_mddb.core;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

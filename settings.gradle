@@ -1,4 +1,7 @@
 rootProject.name = 'ghidra-wwan-modem-tools'
-include 'VnaolteFirmware', 'mtk-mddb-tools'
-project(':VnaolteFirmware').projectDir = file('qualcomm')
-project(':mtk-mddb-tools').projectDir = file('mediatek')
+include 'core', 'cli'
+if (providers.gradleProperty('ghidraInstallDir').isPresent()) {
+    include 'VnaolteFirmware', 'mtk-mddb-tools'
+    project(':VnaolteFirmware').projectDir = file('qualcomm')
+    project(':mtk-mddb-tools').projectDir = file('mediatek')
+}

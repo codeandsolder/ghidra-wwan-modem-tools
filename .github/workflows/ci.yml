@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   java-quality:
-    uses: codeandsolder/ci-workflows/.github/workflows/java-quality.yml@91183d106cd3b1f251fa52d9f3b78429af6f9e7c # main
+    uses: codeandsolder/ci-workflows/.github/workflows/java-quality.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
   extensions:
     runs-on: ubuntu-latest
     steps:
@@ -23,26 +23,22 @@ jobs:
           persist-credentials: false
       - id: ghidra
         uses: ./.github/actions/setup-ghidra
-      - run: bash -n qualcomm/ci/*.sh
       - name: Verify and package both extensions
         run: ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform=linux64 packageExtensions
+  source-quality:
+    uses: codeandsolder/ci-workflows/.github/workflows/source-quality.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
+  renovate-config:
+    uses: codeandsolder/ci-workflows/.github/workflows/renovate-config.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
   cli:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cli
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
-          version: latest-known
-          enable-cache: true
-          cache-dependency-glob: cli/uv.lock
-      - run: uv sync --locked --all-groups
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run ty check
-      - run: uv run pytest
-      - run: uv build
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - run: ./gradlew --no-daemon check :cli:installDist :cli:distZip
+      - run: cli/build/install/mtk-mddb-cli-linux64/bin/mtk-mddb --help

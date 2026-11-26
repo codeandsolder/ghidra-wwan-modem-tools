@@ -1,5 +1,7 @@
 package mtk_mddb.ghidra;
 
+import mtk_mddb.core.MddbDatabase;
+
 import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;

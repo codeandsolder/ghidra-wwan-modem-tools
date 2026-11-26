@@ -139,23 +139,23 @@ For an already-analyzed persisted corpus, pass **`-noanalysis`** to `analyzeHead
 
 The original extraction/query tools remain useful for scripting and bulk archaeology.
 
-From the repository’s `cli/` directory, with `uv`:
+From the repository root, using Java 25:
 
 ```bash
-uv sync
+./gradlew :cli:installDist
 ```
 
 Extract an EDB:
 
 ```bash
-uv run mtk-mddb-extract modem.EDB -o out
+cli/build/install/mtk-mddb-cli-linux64/bin/mtk-mddb extract modem.EDB -o out
 ```
 
 Search an EDB directly:
 
 ```bash
-uv run mtk-mddb-query modem.EDB IQ_DUMP
-uv run mtk-mddb-query modem.EDB URF_TEST_CMD --cf sp --limit 20
+cli/build/install/mtk-mddb-cli-linux64/bin/mtk-mddb query modem.EDB IQ_DUMP
+cli/build/install/mtk-mddb-cli-linux64/bin/mtk-mddb query modem.EDB URF_TEST_CMD --cf sp --limit 20
 ```
 
 An extraction contains:
@@ -207,14 +207,10 @@ Other MediaTek Catcher/META generations may use related but different layouts. U
 
 ## Development
 
-Python checks (from `cli/`):
+Headless core and CLI checks (from the repository root):
 
 ```bash
-uv sync --all-groups
-uv run ruff check .
-uv run ruff format --check .
-uv run ty check
-uv run pytest
+./gradlew --no-daemon check :cli:distZip
 ```
 
 Build the Ghidra extension against an installed Ghidra 12.2:

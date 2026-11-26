@@ -1,5 +1,8 @@
 package mtk_mddb.ghidra;
 
+import mtk_mddb.core.MddbDatabase;
+import mtk_mddb.core.MddbSearchResult;
+
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
@@ -255,7 +258,8 @@ final class MtkMddbProvider extends ComponentProvider {
     private void runSearch() {
         MddbDatabase db = database;
         String needle = searchField.getText();
-        String cf = (String) columnFamily.getSelectedItem();
+        List<String> families = columnFamily.getSelectedIndex() <= 0 ? List.of() :
+            List.of((String) columnFamily.getSelectedItem());
         if (db == null) {
             statusLabel.setText("Open an EDB first.");
             return;
@@ -268,7 +272,7 @@ final class MtkMddbProvider extends ComponentProvider {
         new SwingWorker<List<DisplayResult>, Void>() {
             @Override
             protected List<DisplayResult> doInBackground() throws Exception {
-                List<MddbSearchResult> matches = db.search(needle, cf, SEARCH_LIMIT);
+                List<MddbSearchResult> matches = db.search(needle, families, SEARCH_LIMIT);
                 List<DisplayResult> enriched = new ArrayList<>(matches.size());
                 for (MddbSearchResult match : matches) {
                     enriched.add(new DisplayResult(match, db.schemaInfo(match)));
