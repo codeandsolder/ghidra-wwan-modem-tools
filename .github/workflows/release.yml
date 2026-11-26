@@ -1,0 +1,52 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  java-quality:
+    uses: codeandsolder/ci-workflows/.github/workflows/java-quality.yml@91183d106cd3b1f251fa52d9f3b78429af6f9e7c # main
+  release:
+    needs: java-quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: ghidra
+        uses: ./.github/actions/setup-ghidra
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: latest-known
+          enable-cache: true
+          cache-dependency-glob: cli/uv.lock
+      - name: Test and build all release packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd cli
+            uv sync --locked --all-groups
+            uv run ruff check .
+            uv run ruff format --check .
+            uv run ty check
+            uv run pytest
+            uv build
+          )
+          ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform=linux64 packageExtensions
+          for platform in win64 osx; do
+            ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform="$platform" :mtk-mddb-tools:packageExtension -x :mtk-mddb-tools:test
+          done
+          mkdir dist
+          cp qualcomm/dist/*.zip mediatek/dist/*.zip cli/dist/*.whl cli/dist/*.tar.gz dist/
+          (cd dist && sha256sum *.zip *.whl *.tar.gz > SHA256SUMS)
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
