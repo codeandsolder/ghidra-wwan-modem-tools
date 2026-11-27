@@ -1,6 +1,8 @@
 plugins { id 'application' }
 evaluationDependsOn(':core')
 
+dependencyLocking { lockAllConfigurations() }
+
 dependencies {
     implementation project(':core')
     implementation 'com.google.code.gson:gson:2.15.0'
@@ -11,7 +13,13 @@ application {
     applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 distributions {
-    main { distributionBaseName = "mtk-mddb-cli-${project(':core').rocksPlatform}" }
+    main {
+        distributionBaseName = "mtk-mddb-cli-${project(':core').rocksPlatform}"
+        contents {
+            from(rootProject.files('LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD-PARTY-NOTICES.md'))
+            from(rootProject.file('licenses')) { into 'licenses' }
+        }
+    }
 }
 tasks.named('distZip') { dependsOn 'check' }
 tasks.named('distTar') { enabled = false }

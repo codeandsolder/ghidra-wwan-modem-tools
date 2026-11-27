@@ -1,5 +1,9 @@
 plugins { id 'base' }
 
+version = providers.gradleProperty('releaseVersion').get()
+
+def licenseFiles = files('LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'THIRD-PARTY-NOTICES.md')
+
 def extensions = subprojects.findAll { it.name in ['VnaolteFirmware', 'mtk-mddb-tools'] }
 
 configure(extensions) {
@@ -17,14 +21,25 @@ configure(extensions) {
     tasks.named('check') { dependsOn 'compileGhidraScripts' }
     tasks.named('buildExtension', Zip) {
         dependsOn 'check'
+        from(licenseFiles) { into project.name }
+        archiveVersion.set('')
         preserveFileTimestamps = false
         reproducibleFileOrder = true
     }
 }
 
 subprojects {
+    version = rootProject.version
     repositories { mavenCentral() }
+    tasks.withType(AbstractArchiveTask).configureEach {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+    }
     plugins.withType(JavaPlugin) {
+        tasks.named('jar') {
+            archiveVersion.set('')
+            from(licenseFiles) { into 'META-INF' }
+        }
         java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
         dependencies {
             testImplementation platform('org.junit:junit-bom:6.1.3')

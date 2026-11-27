@@ -21,14 +21,18 @@ jobs:
           persist-credentials: false
       - id: ghidra
         uses: ./.github/actions/setup-ghidra
-      - name: Verify and package both extensions
-        run: ./gradlew --no-daemon -PghidraInstallDir="${{ steps.ghidra.outputs.install-dir }}" -ProcksdbPlatform=linux64 packageExtensions
+      - name: Dry-run the release packaging
+        run: ci/package-release.sh "${{ steps.ghidra.outputs.install-dir }}" dist
   source-quality:
     uses: codeandsolder/ci-workflows/.github/workflows/source-quality.yml@ce05e1ab3124112fcd04a34d0b365a880ebed4bd # main
   renovate-config:
     uses: codeandsolder/ci-workflows/.github/workflows/renovate-config.yml@cef9ed17f08f76279ca9faa66faee1ceccc50a97 # main
   cli:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,5 +42,11 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
-      - run: ./gradlew --no-daemon check :cli:installDist :cli:distZip
-      - run: cli/build/install/mtk-mddb-cli-linux64/bin/mtk-mddb --help
+      - shell: bash
+        run: ./gradlew --no-daemon check :cli:installDist :cli:distZip
+      - if: runner.os != 'Windows'
+        shell: bash
+        run: cli/build/install/mtk-mddb-cli-*/bin/mtk-mddb --help
+      - if: runner.os == 'Windows'
+        shell: cmd
+        run: cli\build\install\mtk-mddb-cli-win64\bin\mtk-mddb.bat --help

@@ -27,6 +27,13 @@ runs:
         echo "2c2cd776db3c1f6a097ba418922378ac3649cadd5e844a6f5f088ae628a7be67  $archive" | sha256sum -c -
         unzip -q "$archive" -d "$HOME/.cache/ghidra-wwan"
         rm "$archive"
+    - name: Install ripgrep
+      shell: bash
+      run: |
+        if ! command -v rg >/dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+        fi
     - id: sdk
       shell: bash
       run: |

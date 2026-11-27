@@ -1,0 +1,8 @@
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+Copyright (c) 2026 codeandsolder
+
+The first-party code in this repository is licensed under either the MIT
+License (LICENSE-MIT) or the Apache License, Version 2.0 (LICENSE-APACHE),
+at your option. Third-party components retain their own licenses; see
+THIRD-PARTY-NOTICES.md. The Gradle wrapper retains its Apache-2.0 license.

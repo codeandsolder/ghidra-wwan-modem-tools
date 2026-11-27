@@ -35,3 +35,25 @@ The CLI and MediaTek extension use the same decoding and database implementation
 
 Both extension histories are preserved, including the original
 [mtk-mddb-tools](https://github.com/codeandsolder/mtk-mddb-tools) project.
+
+## License
+
+First-party code: [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE),
+at your option. See [third-party notices](THIRD-PARTY-NOTICES.md) and
+[release history](CHANGELOG.md).
+
+## Dependency updates
+
+Gradle dependency lockfiles and SHA-256 verification metadata are committed.
+Renovate manages updates using the shared fleet preset. To refresh them after
+an intentional dependency change, run:
+
+```sh
+./gradlew --write-locks --write-verification-metadata sha256 :core:dependencies :cli:dependencies
+```
+
+Review the changed checksums against Maven Central and run the release dry run:
+
+```sh
+ci/package-release.sh /path/to/ghidra /path/to/empty/output
+```
